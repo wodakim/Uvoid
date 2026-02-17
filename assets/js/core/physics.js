@@ -211,8 +211,12 @@ export default class Physics {
 
     resolveRectCollision(hole, prop) {
         // Rect dimensions - Tightened for better feel (ignore shadows/edges)
-        const hw = (prop.width / 2) * 0.85; // 85% of visual width
-        const hh = (prop.length / 2) * 0.85; // 85% of visual length
+        // Adjust collision box to be slightly smaller than visual to allow "sliding"
+        // Also ensure shadows (which are part of visuals usually) don't block.
+        // Assuming prop.width/length are the PHYSICAL bounds.
+
+        const hw = (prop.width / 2) * 0.8;
+        const hh = (prop.length / 2) * 0.8;
 
         // Clamp point (hole center) to rect
         const closestX = Math.max(prop.x - hw, Math.min(hole.x, prop.x + hw));

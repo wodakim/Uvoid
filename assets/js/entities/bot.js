@@ -16,8 +16,8 @@ export default class Bot extends Hole {
         this.level = 1;
         this.upgradePool = ['speed', 'size', 'satellite', 'suction', 'digest', 'cooldown'];
 
-        // AI Personality (Randomized)
-        this.aggression = 0.5 + Math.random() * 0.5; // 0.5 to 1.0
+        // AI Personality
+        this.aggression = 0.5 + Math.random() * 0.5;
         this.fear = 0.3 + Math.random() * 0.5;
     }
 
@@ -28,7 +28,8 @@ export default class Bot extends Hole {
             this.levelUp();
         }
 
-        const scanRadius = 700 + (this.radius * 2);
+        // Reduced Scan Radius for Performance and Focus
+        const scanRadius = 500 + (this.radius * 2);
 
         let bestTarget = null;
         let bestScore = -Infinity;
@@ -37,7 +38,7 @@ export default class Bot extends Hole {
 
         let foundSomething = false;
 
-        // AI Scan Loop
+        // Simplify Loop: Check closest entities
         for (const entity of entities) {
             if (entity === this) continue;
             if (entity.markedForDeletion) continue;
@@ -46,35 +47,47 @@ export default class Bot extends Hole {
             const dy = entity.y - this.y;
             const distSq = dx*dx + dy*dy;
 
+            // Collision Avoidance (Solid Props like Buildings)
+            // If very close to a solid building that we can't eat, turn away
+            if (entity.type === 'prop' && entity.isSolid && this.radius < entity.radius) {
+                if (distSq < (this.radius + entity.radius + 50)**2) {
+                     // Force wander away
+                     this.wanderAngle = Math.atan2(this.y - entity.y, this.x - entity.x);
+                     this.state = 'wander';
+                     break;
+                }
+            }
+
             if (distSq > scanRadius * scanRadius) continue;
 
             const dist = Math.sqrt(distSq);
             foundSomething = true;
 
-            // Threat Detection (Bigger Holes)
+            // Threat Detection
             if (entity.type === 'hole') {
-                if (entity.radius > this.radius * 1.05) { // 5% margin
+                if (entity.radius > this.radius * 1.05) {
                      if (dist < closestThreatDist) {
                          closestThreatDist = dist;
                          biggestThreat = entity;
                      }
-                     continue; // Don't eat threats
+                     continue;
                 }
             }
 
             // Food Evaluation
-            // We want high value items that are close
             let value = 0;
             if (entity.type === 'hole') {
-                value = (entity.score || 10) * 5; // Holes are tasty
+                value = (entity.score || 10) * 10; // Prioritize Kills
             } else if (entity.type === 'prop') {
-                value = entity.value || 1;
-                // Prefer groups? Hard to detect without complex logic.
+                // If we can eat it
+                if (this.radius > entity.radius * 1.1) {
+                    value = entity.value || 1;
+                } else {
+                    continue; // Ignore things we can't eat
+                }
             }
 
-            // Score formula: Value / Distance
-            // Modifiers: Aggression prefers holes.
-            let score = value / (dist + 10);
+            let score = value / (dist + 50);
 
             if (entity.type === 'hole') {
                 score *= (1 + this.aggression);
@@ -86,7 +99,7 @@ export default class Bot extends Hole {
             }
         }
 
-        // Virtual Foraging (Hardcore Pace)
+        // Virtual Foraging if lost
         if (!foundSomething) {
             if (Math.random() < dt * 0.5) {
                 this.grow(1);
@@ -94,7 +107,7 @@ export default class Bot extends Hole {
         }
 
         // State Decision
-        const panicDistance = 300 + this.radius + (biggestThreat ? biggestThreat.radius : 0);
+        const panicDistance = 250 + this.radius + (biggestThreat ? biggestThreat.radius : 0);
 
         if (biggestThreat && closestThreatDist < panicDistance) {
             this.state = 'flee';
@@ -103,52 +116,38 @@ export default class Bot extends Hole {
             this.state = 'chase';
             this.target = bestTarget;
         } else {
-            this.state = 'wander';
-            this.target = null;
+            // Only wander if not already wandering or stuck
+            if (this.state !== 'wander') {
+                this.state = 'wander';
+                this.wanderAngle = Math.random() * Math.PI * 2;
+            }
         }
 
         // Action Execution
         let vx = 0, vy = 0;
-        const currentSpeed = this.currentSpeed * (this.state === 'flee' ? 1.2 : 1.0); // Sprint when scared
+        const currentSpeed = this.currentSpeed * (this.state === 'flee' ? 1.2 : 1.0);
 
         if (this.state === 'flee') {
             const dx = this.x - this.target.x;
             const dy = this.y - this.target.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
             if (dist > 0) {
-                // Flee vector
                 vx = (dx / dist) * currentSpeed;
                 vy = (dy / dist) * currentSpeed;
             }
         } else if (this.state === 'chase') {
-            // Predict target movement?
-            let tx = this.target.x;
-            let ty = this.target.y;
-
-            // Simple prediction if target is moving
-            if (this.target.velocity) {
-                tx += this.target.velocity.x * 0.5; // Look ahead 0.5s
-                ty += this.target.velocity.y * 0.5;
-            }
-
-            const dx = tx - this.x;
-            const dy = ty - this.y;
+            const dx = this.target.x - this.x;
+            const dy = this.target.y - this.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
-
             if (dist > 0) {
                 vx = (dx / dist) * currentSpeed;
                 vy = (dy / dist) * currentSpeed;
             }
         } else {
-            // Wander
-            this.lastStateChange += dt;
-            if (this.lastStateChange > 2.0) {
-                // Change direction randomly
-                this.wanderAngle += (Math.random() - 0.5) * 4;
-                this.lastStateChange = 0;
-            }
-            vx = Math.cos(this.wanderAngle) * currentSpeed * 0.5;
-            vy = Math.sin(this.wanderAngle) * currentSpeed * 0.5;
+            // Wander: Smooth Perlin-like turn
+            this.wanderAngle += (Math.random() - 0.5) * 0.2;
+            vx = Math.cos(this.wanderAngle) * currentSpeed * 0.6;
+            vy = Math.sin(this.wanderAngle) * currentSpeed * 0.6;
         }
 
         this.velocity = { x: vx, y: vy };

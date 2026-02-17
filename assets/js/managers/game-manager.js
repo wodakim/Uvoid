@@ -395,10 +395,8 @@ export default class GameManager {
     revivePlayer() {
         this.app.adManager.showRewardedAd(() => {
              this.player.markedForDeletion = false;
-             // Don't reset radius completely? Or maybe keep half mass?
-             // "Revive" usually implies keeping progress.
-             // But "Reset to 15" was there. Let's keep 50% mass as a bonus.
-             this.player.radius = Math.max(15, this.player.radius * 0.5);
+             // Restore full stats (Do NOT reset radius/score)
+             // this.player.radius = Math.max(15, this.player.radius * 0.5); // Removed reset
 
              // Respawn safely away from enemies
              // Find a safe spot
