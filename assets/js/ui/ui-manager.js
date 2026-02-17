@@ -47,6 +47,7 @@ export default class UIManager {
         this.bindSettingToggle('btn-toggle-music', 'music');
         this.bindSettingToggle('btn-toggle-shake', 'screenShake');
         this.bindSettingToggle('btn-toggle-haptic', 'hapticFeedback');
+        this.bindSettingToggle('btn-toggle-vfx', 'visualEffects');
 
         // Time Selection inside Popup
         const timeButtons = document.querySelectorAll('.btn-time');
@@ -112,6 +113,12 @@ export default class UIManager {
             btn.addEventListener('click', () => {
                 const newState = this.app.settingsManager.toggle(settingKey);
                 this.updateToggleBtn(btn, newState);
+
+                if (settingKey === 'music' && this.app.soundManager) {
+                    if (this.app.soundManager.toggleMusic) {
+                        this.app.soundManager.toggleMusic(newState);
+                    }
+                }
             });
         }
     }
@@ -121,6 +128,7 @@ export default class UIManager {
         this.updateToggleBtn(document.getElementById('btn-toggle-music'), this.app.settingsManager.get('music'));
         this.updateToggleBtn(document.getElementById('btn-toggle-shake'), this.app.settingsManager.get('screenShake'));
         this.updateToggleBtn(document.getElementById('btn-toggle-haptic'), this.app.settingsManager.get('hapticFeedback'));
+        this.updateToggleBtn(document.getElementById('btn-toggle-vfx'), this.app.settingsManager.get('visualEffects'));
     }
 
     updateToggleBtn(btn, isActive) {
@@ -289,10 +297,16 @@ export default class UIManager {
         });
     }
 
-    showGameOver(rank, coinsEarned) {
+    showGameOver(rank, coinsEarned, canRevive = true) {
         this.switchScreen('gameOver');
         document.getElementById('final-rank').textContent = `RANK #${rank}`;
         document.getElementById('earned-coins').textContent = coinsEarned;
+
+        const reviveBtn = document.getElementById('btn-revive');
+        if (reviveBtn) {
+            if (canRevive) reviveBtn.classList.remove('hidden');
+            else reviveBtn.classList.add('hidden');
+        }
 
         const bar = document.getElementById('progress-bar-fill');
         bar.style.width = '0%';

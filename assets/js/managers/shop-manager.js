@@ -12,8 +12,6 @@ export default class ShopManager {
             { id: 'mech_gear', name: 'Mech Gear', cost: 5000, type: 'coins', color: '#ff4500', shape: 'gear' },
             { id: 'dark_mode', name: 'Void King', cost: 3, type: 'ads', color: '#ff3333', shape: 'circle' }
         ];
-
-        // Grid is rendered on open
     }
 
     openShop() {
@@ -40,21 +38,24 @@ export default class ShopManager {
             if (isSelected) item.classList.add('selected');
             if (!isUnlocked) item.classList.add('locked');
 
-            // Content
             const title = document.createElement('h3');
             title.textContent = skin.name;
             title.style.color = skin.color;
             item.appendChild(title);
 
-            // Preview Circle
-            const preview = document.createElement('div');
-            preview.style.width = '50px';
-            preview.style.height = '50px';
-            preview.style.borderRadius = '50%';
-            preview.style.border = `3px solid ${skin.color}`;
-            preview.style.boxShadow = `0 0 10px ${skin.color}`;
-            preview.style.margin = '10px auto';
-            item.appendChild(preview);
+            // Live Preview Canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = 80;
+            canvas.height = 80;
+            canvas.style.margin = '10px auto';
+            canvas.style.display = 'block';
+            const ctx = canvas.getContext('2d');
+
+            // Draw Loop for Animation? No, just static frame is enough for now,
+            // or simple interval. Let's do static for performance in menu.
+            this.drawPreview(ctx, skin, 40, 40, 25);
+
+            item.appendChild(canvas);
 
             // Action Button
             const btn = document.createElement('button');
@@ -73,7 +74,6 @@ export default class ShopManager {
                     this.renderShop();
                 };
             } else {
-                // Locked
                 if (skin.type === 'coins') {
                     btn.textContent = `BUY (${skin.cost})`;
                     if (this.saveManager.data.coins < skin.cost) {
@@ -94,23 +94,90 @@ export default class ShopManager {
         });
     }
 
+    drawPreview(ctx, skin, x, y, r) {
+        ctx.clearRect(0, 0, 80, 80);
+
+        // Void Hole
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        this.drawShape(ctx, x, y, r, skin.shape);
+        ctx.fill();
+
+        // Neon Rim
+        ctx.strokeStyle = skin.color;
+        ctx.lineWidth = 4;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = skin.color;
+        ctx.stroke();
+
+        // Inner detail
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.5;
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+    }
+
+    drawShape(ctx, cx, cy, r, type) {
+        if (type === 'square') {
+            const side = r * Math.sqrt(2);
+            ctx.rect(cx - side/2, cy - side/2, side, side);
+        } else if (type === 'star') {
+            this.drawStar(ctx, cx, cy, 5, r, r/2);
+        } else if (type === 'gear') {
+             this.drawGear(ctx, cx, cy, 8, r, r * 0.8);
+        } else {
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        }
+    }
+
+    drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
+        let rot = Math.PI / 2 * 3;
+        let x = cx;
+        let y = cy;
+        const step = Math.PI / spikes;
+
+        ctx.moveTo(cx, cy - outerRadius);
+        for (let i = 0; i < spikes; i++) {
+            x = cx + Math.cos(rot) * outerRadius;
+            y = cy + Math.sin(rot) * outerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+
+            x = cx + Math.cos(rot) * innerRadius;
+            y = cy + Math.sin(rot) * innerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+        }
+        ctx.lineTo(cx, cy - outerRadius);
+        ctx.closePath();
+    }
+
+    drawGear(ctx, cx, cy, teeth, outerRadius, innerRadius) {
+        const step = (Math.PI * 2) / (teeth * 2);
+        for (let i = 0; i < teeth * 2; i++) {
+            const r = (i % 2 === 0) ? outerRadius : innerRadius;
+            const angle = i * step - Math.PI / 2;
+            if (i===0) ctx.moveTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+            else ctx.lineTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+        }
+        ctx.closePath();
+    }
+
     buySkin(skin) {
         if (this.saveManager.spendCoins(skin.cost)) {
             this.saveManager.unlockSkin(skin.id);
-            this.saveManager.setSkin(skin.id); // Auto-equip
+            this.saveManager.setSkin(skin.id);
             this.renderShop();
-            // Sound?
         }
     }
 
     watchAdForSkin(skin) {
         if (this.app.adManager) {
             this.app.adManager.showRewardedAd(() => {
-                // Increment progress
                 const current = this.saveManager.data.skinAdProgress[skin.id] || 0;
                 const next = current + 1;
-
-                // Update progress in saveManager data directly (should add method)
                 this.saveManager.data.skinAdProgress[skin.id] = next;
                 this.saveManager.save();
 
@@ -118,14 +185,12 @@ export default class ShopManager {
                     this.saveManager.unlockSkin(skin.id);
                     this.saveManager.setSkin(skin.id);
                 }
-
                 this.renderShop();
             });
         }
     }
 
     buyNoAds() {
-        // Simulate Purchase
         if (confirm("Remove Ads for $2.99? (Simulated)")) {
             this.saveManager.buyNoAds();
             alert("Ads Removed!");

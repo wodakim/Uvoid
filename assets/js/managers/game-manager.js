@@ -11,10 +11,12 @@ import TrafficManager from './traffic-manager.js';
 import MissionManager from './mission-manager.js';
 import MapManager from './map-manager.js';
 import UpgradeManager from './upgrade-manager.js';
+import ObjectPool from '../core/pool.js';
 
 export default class GameManager {
     constructor(app) {
         this.app = app;
+        this.particlePool = new ObjectPool(() => new Particle(0, 0, '#fff'), 100);
         this.physics = new Physics(app.settingsManager);
         this.camera = new Camera(app.settingsManager);
         this.trafficManager = new TrafficManager(this); // Pass self
@@ -215,6 +217,13 @@ export default class GameManager {
         });
 
         // 5. Cleanup & Spawning
+        // Handle pooling release
+        this.entities.forEach(e => {
+            if (e.markedForDeletion && e.type === 'particle') {
+                this.particlePool.release(e);
+            }
+        });
+
         // Removed Bot Despawn Logic to allow them to live/grow globally
         this.entities = this.entities.filter(e => !e.markedForDeletion);
 
@@ -328,9 +337,13 @@ export default class GameManager {
     }
 
     spawnParticles(x, y, color, amount = 5) {
+        if (!this.app.settingsManager.get('visualEffects')) return;
+
         const count = Math.min(amount, 8);
         for (let i = 0; i < count; i++) {
-            this.entities.push(new Particle(x, y, color));
+            const p = this.particlePool.get();
+            p.reset(x, y, color);
+            this.entities.push(p);
         }
     }
 
@@ -375,7 +388,8 @@ export default class GameManager {
             this.app.saveManager.setHighScore(this.player.score);
         }
 
-        this.app.uiManager.showGameOver(rank, coinsEarned);
+        const canRevive = this.player.markedForDeletion;
+        this.app.uiManager.showGameOver(rank, coinsEarned, canRevive);
     }
 
     revivePlayer() {

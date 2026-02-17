@@ -3,6 +3,7 @@ export default class SettingsManager {
         this.settings = {
             screenShake: false,
             hapticFeedback: false,
+            visualEffects: true,
             sound: true,
             music: true
         };

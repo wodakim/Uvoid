@@ -8,16 +8,19 @@ export default class SoundManager {
 
     init() {
         if (this.initialized) return;
-        if (this.settingsManager && !this.settingsManager.get('sound')) return;
-
+        // User interaction required to unlock audio
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             this.ctx = new AudioContext();
             this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.value = 0.3; // Low volume
+            this.masterGain.gain.value = 0.3;
             this.masterGain.connect(this.ctx.destination);
             this.initialized = true;
-            this.startDrone();
+
+            // Background Drone (Cyberpunk Ambience)
+            if (this.settingsManager.get('music')) {
+                this.startDrone();
+            }
         } catch (e) {
             console.warn("AudioContext not supported or blocked");
         }
@@ -25,102 +28,126 @@ export default class SoundManager {
 
     play(type) {
         if (!this.initialized) {
-            // Try to init on first user interaction if not already
-            if (this.settingsManager && this.settingsManager.get('sound')) {
+            if (this.settingsManager && (this.settingsManager.get('sound') || this.settingsManager.get('music'))) {
                  this.init();
             }
             if (!this.initialized) return;
         }
 
         if (this.settingsManager && !this.settingsManager.get('sound')) return;
-
         if (this.ctx.state === 'suspended') this.ctx.resume();
-
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.connect(gain);
-        gain.connect(this.masterGain);
 
         const now = this.ctx.currentTime;
 
+        // Random pitch variation for organic feel
+        const pitchMod = 0.9 + Math.random() * 0.2;
+
         if (type === 'eatSmall') {
-            // High blip
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(800, now);
-            osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
-            gain.gain.setValueAtTime(1, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            // Crunchy Pop
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(600 * pitchMod, now);
+            osc.frequency.exponentialRampToValueAtTime(1200 * pitchMod, now + 0.05);
+
+            gain.gain.setValueAtTime(0.8, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+
             osc.start(now);
             osc.stop(now + 0.1);
         }
         else if (type === 'eatLarge') {
-            // Low thud
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(100, now);
-            osc.frequency.exponentialRampToValueAtTime(50, now + 0.2);
-            gain.gain.setValueAtTime(1, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            // Deep Bass Thud
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(150 * pitchMod, now);
+            osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+
+            gain.gain.setValueAtTime(1.0, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+
             osc.start(now);
-            osc.stop(now + 0.3);
+            osc.stop(now + 0.4);
         }
         else if (type === 'levelUp') {
-            // Arpeggio
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(400, now);
-            osc.frequency.setValueAtTime(500, now + 0.1);
-            osc.frequency.setValueAtTime(600, now + 0.2);
-            gain.gain.setValueAtTime(0.5, now);
-            gain.gain.linearRampToValueAtTime(0, now + 0.5);
-            osc.start(now);
-            osc.stop(now + 0.5);
+            // Synth Arpeggio
+            const notes = [440, 554, 659, 880]; // A Major
+            notes.forEach((freq, i) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+
+                osc.type = 'square';
+                osc.frequency.value = freq;
+
+                const startTime = now + i * 0.05;
+                gain.gain.setValueAtTime(0.1, startTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.3);
+
+                osc.start(startTime);
+                osc.stop(startTime + 0.3);
+            });
         }
         else if (type === 'siren') {
-            // Police Siren
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(600, now);
-            osc.frequency.linearRampToValueAtTime(1200, now + 0.5);
-            osc.frequency.linearRampToValueAtTime(600, now + 1.0);
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.masterGain);
 
-            gain.gain.setValueAtTime(0.3, now);
-            gain.gain.linearRampToValueAtTime(0.3, now + 1.0);
-            gain.gain.linearRampToValueAtTime(0, now + 1.5);
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.linearRampToValueAtTime(1500, now + 0.4);
+            osc.frequency.linearRampToValueAtTime(800, now + 0.8);
+
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.linearRampToValueAtTime(0, now + 1.0);
 
             osc.start(now);
-            osc.stop(now + 1.5);
+            osc.stop(now + 1.0);
         }
     }
 
     startDrone() {
-        // Low frequency drone loop
+        if (!this.ctx) return;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.connect(gain);
         gain.connect(this.masterGain);
 
         osc.type = 'sawtooth';
-        osc.frequency.value = 50;
-        gain.gain.value = 0.05;
+        osc.frequency.value = 40;
 
-        // LFO for modulation
-        const lfo = this.ctx.createOscillator();
-        lfo.type = 'sine';
-        lfo.frequency.value = 0.1;
-        const lfoGain = this.ctx.createGain();
-        lfoGain.gain.value = 500; // Filter modulation depth
-
-        // Filter
+        // Lowpass Filter for "Underwater/Space" feel
         const filter = this.ctx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.value = 200;
+        filter.frequency.value = 120;
 
         osc.disconnect();
         osc.connect(filter);
         filter.connect(gain);
 
-        lfo.connect(lfoGain);
-        lfoGain.connect(filter.frequency);
-        lfo.start();
+        gain.gain.value = 0.15;
 
         osc.start();
+        // Keep reference to stop later if needed (toggle music)
+        this.droneOsc = osc;
+        this.droneGain = gain;
+    }
+
+    toggleMusic(enabled) {
+        if (enabled) {
+            if (!this.droneOsc && this.initialized) this.startDrone();
+            if (this.droneGain) this.droneGain.gain.setTargetAtTime(0.15, this.ctx.currentTime, 0.5);
+        } else {
+            if (this.droneGain) this.droneGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.5);
+        }
     }
 }

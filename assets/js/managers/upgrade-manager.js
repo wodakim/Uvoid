@@ -1,14 +1,14 @@
+import Shockwave from '../entities/shockwave.js';
+
 export default class UpgradeManager {
     constructor(gameManager) {
         this.gameManager = gameManager;
-        this.baseThreshold = 300; // Reduced from 1000 for Hardcore pacing
+        this.baseThreshold = 300;
         this.nextThreshold = this.baseThreshold;
         this.level = 1;
 
         this.isChoosing = false;
 
-        // Define Upgrade Options
-        // Updated descriptions to reflect rebalance
         this.upgrades = [
             { id: 'speed', name: 'TURBO BOOST', desc: '+30 Base Speed', icon: '⚡' },
             { id: 'size', name: 'MASS EXPANSION', desc: '+2% Size Instantly', icon: '🟣' },
@@ -22,7 +22,6 @@ export default class UpgradeManager {
     checkLevelUp(playerScore) {
         if (playerScore >= this.nextThreshold) {
             this.triggerLevelUp();
-            // Scaled for Hardcore scoring (approx 1/3 of previous)
             const increment = this.level * 500;
             this.nextThreshold += increment;
             this.level++;
@@ -54,6 +53,14 @@ export default class UpgradeManager {
         if (!player) return;
 
         player.addUpgrade(id);
+
+        // Visual Feedback (Juice)
+        if (this.gameManager.app.settingsManager.get('visualEffects')) {
+             const sw = new Shockwave(player.x, player.y, player.radius * 3, player.color);
+             this.gameManager.entities.push(sw);
+             this.gameManager.camera.shake(15);
+        }
+        this.gameManager.app.soundManager.play('levelUp');
 
         this.isChoosing = false;
         this.gameManager.paused = false;
