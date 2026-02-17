@@ -182,4 +182,28 @@ export default class MapManager {
             this.activeChunks.delete(key);
         }
     }
+
+    getRandomRoadPosition(playerX, playerY, range=2000) {
+        const cx = Math.floor(playerX / this.chunkSize);
+        const cy = Math.floor(playerY / this.chunkSize);
+
+        // Try to pick a road line (multiples of chunkSize)
+        // This is a simplified version, it picks a point along the grid lines
+        const isVert = Math.random() > 0.5;
+        let x, y;
+
+        if (isVert) {
+            // Pick a vertical road near player
+            const offsetIdx = Math.floor((Math.random() - 0.5) * 4);
+            x = (cx + offsetIdx) * this.chunkSize;
+            y = playerY + (Math.random() - 0.5) * range;
+        } else {
+            // Pick a horizontal road near player
+            const offsetIdx = Math.floor((Math.random() - 0.5) * 4);
+            y = (cy + offsetIdx) * this.chunkSize;
+            x = playerX + (Math.random() - 0.5) * range;
+        }
+
+        return { x, y, isVert };
+    }
 }
