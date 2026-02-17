@@ -1,5 +1,6 @@
 export default class SoundManager {
-    constructor() {
+    constructor(settingsManager) {
+        this.settingsManager = settingsManager;
         this.ctx = null;
         this.masterGain = null;
         this.initialized = false;
@@ -7,17 +8,32 @@ export default class SoundManager {
 
     init() {
         if (this.initialized) return;
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        this.ctx = new AudioContext();
-        this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.value = 0.3; // Low volume
-        this.masterGain.connect(this.ctx.destination);
-        this.initialized = true;
-        this.startDrone();
+        if (this.settingsManager && !this.settingsManager.get('sound')) return;
+
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioContext();
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.value = 0.3; // Low volume
+            this.masterGain.connect(this.ctx.destination);
+            this.initialized = true;
+            this.startDrone();
+        } catch (e) {
+            console.warn("AudioContext not supported or blocked");
+        }
     }
 
     play(type) {
-        if (!this.initialized) return;
+        if (!this.initialized) {
+            // Try to init on first user interaction if not already
+            if (this.settingsManager && this.settingsManager.get('sound')) {
+                 this.init();
+            }
+            if (!this.initialized) return;
+        }
+
+        if (this.settingsManager && !this.settingsManager.get('sound')) return;
+
         if (this.ctx.state === 'suspended') this.ctx.resume();
 
         const osc = this.ctx.createOscillator();

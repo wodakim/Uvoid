@@ -14,7 +14,8 @@ export default class UIManager {
         };
 
         this.popups = {
-            timeSelect: document.getElementById('popup-time-select')
+            timeSelect: document.getElementById('popup-time-select'),
+            settings: document.getElementById('popup-settings')
         };
 
         this.minimap = new Minimap(document.getElementById('minimap-canvas'), app);
@@ -29,6 +30,23 @@ export default class UIManager {
                 this.showPopup('timeSelect');
             });
         }
+
+        // Settings
+        const settingsBtn = document.getElementById('btn-settings');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', () => {
+                this.updateSettingsUI();
+                this.showPopup('settings');
+            });
+        }
+
+        document.getElementById('btn-close-settings').addEventListener('click', () => this.hidePopup('settings'));
+
+        // Settings Toggles
+        this.bindSettingToggle('btn-toggle-sound', 'sound');
+        this.bindSettingToggle('btn-toggle-music', 'music');
+        this.bindSettingToggle('btn-toggle-shake', 'screenShake');
+        this.bindSettingToggle('btn-toggle-haptic', 'hapticFeedback');
 
         // Time Selection inside Popup
         const timeButtons = document.querySelectorAll('.btn-time');
@@ -86,6 +104,34 @@ export default class UIManager {
                 this.app.gameManager.startGame(duration);
             }
         }, 3000);
+    }
+
+    bindSettingToggle(btnId, settingKey) {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            btn.addEventListener('click', () => {
+                const newState = this.app.settingsManager.toggle(settingKey);
+                this.updateToggleBtn(btn, newState);
+            });
+        }
+    }
+
+    updateSettingsUI() {
+        this.updateToggleBtn(document.getElementById('btn-toggle-sound'), this.app.settingsManager.get('sound'));
+        this.updateToggleBtn(document.getElementById('btn-toggle-music'), this.app.settingsManager.get('music'));
+        this.updateToggleBtn(document.getElementById('btn-toggle-shake'), this.app.settingsManager.get('screenShake'));
+        this.updateToggleBtn(document.getElementById('btn-toggle-haptic'), this.app.settingsManager.get('hapticFeedback'));
+    }
+
+    updateToggleBtn(btn, isActive) {
+        if (!btn) return;
+        if (isActive) {
+            btn.textContent = 'ON';
+            btn.classList.add('active');
+        } else {
+            btn.textContent = 'OFF';
+            btn.classList.remove('active');
+        }
     }
 
     showPopup(name) {
@@ -192,7 +238,7 @@ export default class UIManager {
         const secs = Math.floor(time % 60);
         document.getElementById('game-timer').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
 
-        document.getElementById('hud-score').textContent = Math.floor(score);
+        this.animateValue('hud-score', Math.floor(score));
         document.getElementById('hud-kills').textContent = kills;
 
         const leaderboard = document.getElementById('leaderboard');
@@ -281,5 +327,100 @@ export default class UIManager {
         setTimeout(() => {
             notif.style.opacity = '0';
         }, 3000);
+    }
+
+    animateValue(id, end) {
+        const obj = document.getElementById(id);
+        if (!obj) return;
+
+        // Store current value to avoid jumping
+        let start = parseInt(obj.textContent) || 0;
+        if (start === end) return;
+
+        const range = end - start;
+        // If difference is small, just set it
+        if (Math.abs(range) < 5) {
+            obj.textContent = end;
+            return;
+        }
+
+        const duration = 500;
+        let startTime = null;
+
+        const step = (timestamp) => {
+            if (!startTime) startTime = timestamp;
+            const progress = Math.min((timestamp - startTime) / duration, 1);
+            obj.textContent = Math.floor(progress * (end - start) + start);
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
+            } else {
+                obj.textContent = end;
+            }
+        };
+        window.requestAnimationFrame(step);
+    }
+
+    showTutorial() {
+        if (localStorage.getItem('urban_void_tutorial_seen')) return;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'tutorial-overlay';
+        overlay.style.position = 'absolute';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.background = 'rgba(0,0,0,0.7)';
+        overlay.style.zIndex = '2000';
+        overlay.style.display = 'flex';
+        overlay.style.justifyContent = 'center';
+        overlay.style.alignItems = 'center';
+        overlay.style.flexDirection = 'column';
+        overlay.style.pointerEvents = 'none'; // Allow touch through? No, we need to detect first touch.
+
+        const hand = document.createElement('div');
+        hand.innerHTML = '👆';
+        hand.style.fontSize = '5rem';
+        hand.style.animation = 'tutorial-swiping 1.5s infinite';
+
+        const text = document.createElement('h2');
+        text.textContent = 'DRAG TO MOVE';
+        text.style.color = '#fff';
+        text.style.fontFamily = 'Montserrat, sans-serif';
+        text.style.marginTop = '20px';
+        text.style.textShadow = '0 0 10px #00f3ff';
+
+        overlay.appendChild(hand);
+        overlay.appendChild(text);
+        document.body.appendChild(overlay);
+
+        // Add CSS for animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes tutorial-swiping {
+                0% { transform: translateX(-50px) rotate(-10deg); opacity: 0.5; }
+                50% { transform: translateX(50px) rotate(10deg); opacity: 1; }
+                100% { transform: translateX(-50px) rotate(-10deg); opacity: 0.5; }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Remove on first interaction
+        const removeTutorial = () => {
+            overlay.style.opacity = '0';
+            setTimeout(() => {
+                if(overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                if(style.parentNode) style.parentNode.removeChild(style);
+            }, 500);
+            localStorage.setItem('urban_void_tutorial_seen', 'true');
+            window.removeEventListener('touchstart', removeTutorial);
+            window.removeEventListener('mousedown', removeTutorial);
+        };
+
+        // Delay slightly to let game start
+        setTimeout(() => {
+            window.addEventListener('touchstart', removeTutorial);
+            window.addEventListener('mousedown', removeTutorial);
+        }, 1000);
     }
 }

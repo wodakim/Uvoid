@@ -3,6 +3,7 @@ import SaveManager from './managers/save-manager.js';
 import AdManager from './managers/ad-manager.js';
 import ShopManager from './managers/shop-manager.js';
 import SoundManager from './managers/sound-manager.js';
+import SettingsManager from './managers/settings-manager.js';
 import UIManager from './ui/ui-manager.js';
 import Renderer from './core/renderer.js';
 import InputHandler from './core/input-handler.js';
@@ -12,11 +13,14 @@ class App {
     constructor() {
         console.log("URBAN VOID: Initializing...");
 
+        // 0. Initialize Settings
+        this.settingsManager = new SettingsManager();
+
         // 1. Initialize UI & Data Managers
         this.uiManager = new UIManager(this);
         this.saveManager = new SaveManager((data) => this.uiManager.updateMenuCoins(data.coins));
         this.adManager = new AdManager();
-        this.soundManager = new SoundManager();
+        this.soundManager = new SoundManager(this.settingsManager);
         this.shopManager = new ShopManager(this);
 
         // 2. Initialize Core Systems

@@ -135,4 +135,17 @@ export default class Bot extends Hole {
         const choice = this.upgradePool[Math.floor(Math.random() * this.upgradePool.length)];
         this.addUpgrade(choice);
     }
+
+    // Bots should have varied appearances
+    static getRandomSkin() {
+        const skins = [
+            { color: '#00f3ff', shape: 'circle' },
+            { color: '#ff00ff', shape: 'circle' },
+            { color: '#39ff14', shape: 'square' },
+            { color: '#ffd700', shape: 'star' },
+            { color: '#ff4500', shape: 'gear' },
+            { color: '#ff3333', shape: 'circle' }
+        ];
+        return skins[Math.floor(Math.random() * skins.length)];
+    }
 }

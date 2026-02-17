@@ -15,8 +15,8 @@ import UpgradeManager from './upgrade-manager.js';
 export default class GameManager {
     constructor(app) {
         this.app = app;
-        this.physics = new Physics();
-        this.camera = new Camera();
+        this.physics = new Physics(app.settingsManager);
+        this.camera = new Camera(app.settingsManager);
         this.trafficManager = new TrafficManager(this); // Pass self
 
         this.entities = [];
@@ -62,6 +62,9 @@ export default class GameManager {
         this.app.saveManager.updateUI();
         this.app.uiManager.switchScreen('hud');
         this.app.uiManager.showCountdown(this.startCountdown);
+
+        // Show Tutorial if first time
+        this.app.uiManager.showTutorial();
 
         // Create Player (Hardcore Small Start)
         const skinInfo = this.app.saveManager.getCurrentSkinInfo();
@@ -279,13 +282,14 @@ export default class GameManager {
             attempts++;
         } while (dist < 800 && attempts < 10);
 
-        const names = ['VoidWalker', 'Eater_X', 'NoBrainer', 'Destroyer99', 'AbyssKing', 'NullPtr', 'GlitchUser', 'System32'];
+        const names = ['VoidWalker', 'Eater_X', 'NoBrainer', 'Destroyer99', 'AbyssKing', 'NullPtr', 'GlitchUser', 'System32', 'DarkMatter', 'HorizonEvent'];
         const name = names[Math.floor(Math.random() * names.length)];
-        const colors = ['#ff00ff', '#39ff14', '#ffae00', '#00f3ff', '#ff3333'];
-        const color = colors[Math.floor(Math.random() * colors.length)];
+
+        const skin = Bot.getRandomSkin();
 
         // Start same size as player: 15 + small random variance
-        const bot = new Bot(x, y, 15 + Math.random() * 3, color, name);
+        const bot = new Bot(x, y, 15 + Math.random() * 3, skin.color, name);
+        bot.shape = skin.shape;
         this.entities.push(bot);
     }
 
@@ -377,13 +381,47 @@ export default class GameManager {
     revivePlayer() {
         this.app.adManager.showRewardedAd(() => {
              this.player.markedForDeletion = false;
-             this.player.radius = 15; // Reset to 15
-             // Respawn safely
-             this.player.x += 1000;
+             // Don't reset radius completely? Or maybe keep half mass?
+             // "Revive" usually implies keeping progress.
+             // But "Reset to 15" was there. Let's keep 50% mass as a bonus.
+             this.player.radius = Math.max(15, this.player.radius * 0.5);
+
+             // Respawn safely away from enemies
+             // Find a safe spot
+             let safeX = this.player.x;
+             let safeY = this.player.y;
+             let foundSafe = false;
+
+             for(let i=0; i<10; i++) {
+                 const angle = Math.random() * Math.PI * 2;
+                 const dist = 500;
+                 const tx = this.player.x + Math.cos(angle) * dist;
+                 const ty = this.player.y + Math.sin(angle) * dist;
+                 // Simple check: is there a big hole nearby?
+                 const danger = this.entities.find(e => e.type === 'hole' && e !== this.player && e.radius > this.player.radius);
+                 if (!danger) {
+                     safeX = tx;
+                     safeY = ty;
+                     foundSafe = true;
+                     break;
+                 }
+             }
+
+             if (!foundSafe) {
+                 safeX += 1000; // Just move far away
+             }
+
+             this.player.x = safeX;
+             this.player.y = safeY;
+
+             // Invulnerability
+             this.player.invulnerable = true;
+             this.player.invulnerableTimer = 3.0; // 3 seconds
+
              this.entities.push(this.player);
 
              this.state = 'PLAYING';
-             this.gameTime += 30;
+             this.gameTime += 30; // Extra time
 
              this.app.uiManager.switchScreen('hud');
         });

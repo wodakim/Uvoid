@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="assets/css/warning.css">
     <link rel="stylesheet" href="assets/css/missions.css">
     <link rel="stylesheet" href="assets/css/minimap.css">
+    <link rel="stylesheet" href="assets/css/settings.css">
 </head>
 <body>
 
@@ -42,6 +43,10 @@
 
             <div class="police-warning">
                 ⚠️ WARNING: POLICE CARS CARRY "VOID CURE". DO NOT EAT! ⚠️
+            </div>
+
+            <div class="top-controls">
+                <button id="btn-settings" class="btn-icon-small">⚙️</button>
             </div>
 
             <!-- Main Play Button -->
@@ -103,6 +108,32 @@
             <div class="loader"></div>
             <h2 class="blink">SEARCHING FOR PLAYERS...</h2>
             <p style="color: #888; margin-top: 10px;">ESTIMATED WAIT: <span id="wait-time" style="color: #fff; font-weight: bold;">3</span>s</p>
+        </div>
+
+        <!-- Popup: Settings -->
+        <div id="popup-settings" class="popup hidden">
+            <div class="popup-content">
+                <h2>SETTINGS</h2>
+                <div class="settings-grid">
+                    <div class="setting-item">
+                        <span>SOUND</span>
+                        <button id="btn-toggle-sound" class="btn-toggle">ON</button>
+                    </div>
+                    <div class="setting-item">
+                        <span>MUSIC</span>
+                        <button id="btn-toggle-music" class="btn-toggle">ON</button>
+                    </div>
+                    <div class="setting-item">
+                        <span>SCREEN SHAKE</span>
+                        <button id="btn-toggle-shake" class="btn-toggle">OFF</button>
+                    </div>
+                    <div class="setting-item">
+                        <span>HAPTIC FEEDBACK</span>
+                        <button id="btn-toggle-haptic" class="btn-toggle">OFF</button>
+                    </div>
+                </div>
+                <button id="btn-close-settings" class="btn-secondary">CLOSE</button>
+            </div>
         </div>
 
         <!-- Popup: Time Selection -->

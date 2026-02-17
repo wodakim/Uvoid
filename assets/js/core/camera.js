@@ -1,5 +1,6 @@
 export default class Camera {
-    constructor() {
+    constructor(settingsManager) {
+        this.settingsManager = settingsManager;
         this.x = 0;
         this.y = 0;
         this.zoom = 1;
@@ -42,6 +43,8 @@ export default class Camera {
     }
 
     shake(amount) {
+        if (this.settingsManager && !this.settingsManager.get('screenShake')) return;
+
         // Only shake if amount is significant (Filter small jitters)
         if (amount < 10) return;
 
