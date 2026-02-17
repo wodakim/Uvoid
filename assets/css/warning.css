@@ -1,0 +1,18 @@
+.police-warning {
+    color: #ff3333;
+    font-weight: bold;
+    font-size: 0.9rem;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 10px;
+    border: 1px solid #ff3333;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    text-align: center;
+    max-width: 80%;
+    animation: blink-warning 2s infinite;
+}
+
+@keyframes blink-warning {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}

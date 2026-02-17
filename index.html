@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>URBAN VOID</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="assets/img/icon-192.png">
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/warning.css">
+    <link rel="stylesheet" href="assets/css/missions.css">
+    <link rel="stylesheet" href="assets/css/minimap.css">
+</head>
+<body>
+
+    <!-- Layer 1: The Abyss (Space/Nebula Background) -->
+    <div id="abyss-background"></div>
+
+    <!-- Layer 2: The Game World (The Floor/City Grid) -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Layer 3: UI Overlay -->
+    <div id="ui-layer">
+
+        <!-- Main Menu -->
+        <div id="screen-main-menu" class="screen active">
+            <h1 class="game-title">URBAN VOID</h1>
+            <div class="coin-display">
+                <span class="coin-icon">©</span> <span id="menu-coin-count">0</span>
+            </div>
+
+            <div id="mission-board">
+                <h3>DAILY MISSIONS</h3>
+                <ul id="mission-list">
+                    <!-- Missions injected by JS -->
+                </ul>
+            </div>
+
+            <div class="police-warning">
+                ⚠️ WARNING: POLICE CARS CARRY "VOID CURE". DO NOT EAT! ⚠️
+            </div>
+
+            <!-- Main Play Button -->
+            <button id="btn-play-menu" class="btn-primary pulse">PLAY</button>
+
+            <div class="bottom-controls">
+                <button id="btn-no-ads" class="btn-secondary">NO ADS</button>
+                <button id="btn-shop" class="btn-secondary">SKINS / SHOP <span id="shop-badge" class="badge hidden">!</span></button>
+            </div>
+        </div>
+
+        <!-- HUD (In-Game) -->
+        <div id="screen-hud" class="screen hidden">
+            <button id="btn-pause" class="btn-icon">⏸</button>
+
+            <div class="hud-top-left">
+                <div id="leaderboard">
+                    <div class="rank-item">1. VoidKing</div>
+                    <div class="rank-item">2. You</div>
+                    <div class="rank-item">3. Eater_X</div>
+                </div>
+            </div>
+            <div class="hud-top-center">
+                <div id="game-timer">02:00</div>
+            </div>
+            <div class="hud-top-right">
+                <div class="score-box">SCORE: <span id="hud-score">0</span></div>
+                <div class="kills-box">KILLS: <span id="hud-kills">0</span></div>
+                <div id="minimap-container">
+                    <canvas id="minimap-canvas" width="100" height="100"></canvas>
+                </div>
+            </div>
+
+            <!-- Virtual Joystick Zone (Invisible but covers area) -->
+            <div id="joystick-zone"></div>
+        </div>
+
+        <!-- Pause Screen -->
+        <div id="screen-pause" class="screen hidden" style="background: rgba(0,0,0,0.8); backdrop-filter: blur(5px);">
+            <h1>PAUSED</h1>
+            <button id="btn-resume" class="btn-primary">RESUME</button>
+            <button id="btn-quit" class="btn-secondary">QUIT TO MENU</button>
+        </div>
+
+        <!-- Shop Screen -->
+        <div id="screen-shop" class="screen hidden">
+            <h2>SHOP</h2>
+            <div class="coin-display-shop">
+                <span class="coin-icon">©</span> <span id="shop-coin-count">0</span>
+            </div>
+            <div id="skin-grid" class="skin-grid">
+                <!-- Skins injected by JS -->
+            </div>
+            <button id="btn-back-shop" class="btn-secondary">BACK</button>
+        </div>
+
+        <!-- Matchmaking Overlay -->
+        <div id="screen-matchmaking" class="screen hidden" style="background: rgba(0,0,0,0.95); z-index: 2000;">
+            <div class="loader"></div>
+            <h2 class="blink">SEARCHING FOR PLAYERS...</h2>
+            <p style="color: #888; margin-top: 10px;">ESTIMATED WAIT: <span id="wait-time" style="color: #fff; font-weight: bold;">3</span>s</p>
+        </div>
+
+        <!-- Popup: Time Selection -->
+        <div id="popup-time-select" class="popup hidden">
+            <div class="popup-content">
+                <h2>SELECT DURATION</h2>
+                <div class="time-grid">
+                    <button class="btn-time" data-time="120">
+                        <span class="time-big">2</span> MIN
+                    </button>
+                    <button class="btn-time" data-time="300">
+                        <span class="time-big">5</span> MIN
+                    </button>
+                    <button class="btn-time" data-time="600">
+                        <span class="time-big">10</span> MIN
+                    </button>
+                </div>
+                <button id="btn-close-popup" class="btn-secondary">CANCEL</button>
+            </div>
+        </div>
+
+        <!-- Level Up Screen -->
+        <div id="screen-levelup" class="screen hidden" style="background: rgba(0,0,0,0.9); z-index: 1500;">
+            <h2 class="levelup-title">LEVEL UP!</h2>
+            <div id="upgrade-cards-container" class="cards-container">
+                <!-- Cards Injected via JS -->
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="screen-game-over" class="screen hidden">
+            <h1>ROUND OVER</h1>
+            <h2 id="final-rank">RANK #5</h2>
+
+            <div class="progress-container">
+                <div class="progress-label">Level Progress</div>
+                <div class="progress-bar-bg">
+                    <div id="progress-bar-fill" class="progress-bar-fill" style="width: 50%;"></div>
+                </div>
+                <div class="rewards-text">+<span id="earned-coins">150</span> Coins</div>
+            </div>
+
+            <button id="btn-revive" class="btn-primary">REVIVE (Watch Ad)</button>
+            <button id="btn-replay" class="btn-secondary">REPLAY</button>
+            <button id="btn-menu-gameover" class="btn-secondary">MENU</button>
+        </div>
+
+    </div>
+
+    <!-- Banner Ad Container -->
+    <div id="ad-banner">
+        <span>ADVERTISEMENT</span>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="assets/js/main.js"></script>
+
+</body>
+</html>
