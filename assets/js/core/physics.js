@@ -1,5 +1,6 @@
 export default class Physics {
-    constructor() {
+    constructor(settingsManager) {
+        this.settingsManager = settingsManager;
         // Infinite world, no bounds check needed for player
         // But we might want to kill entities that are extremely far if MapManager misses them?
         // MapManager handles despawning.
@@ -52,38 +53,65 @@ export default class Physics {
                 if (hole.radius > propR * 1.1) {
 
                     // Suction Range
-                    const pullRadius = hole.radius + propR + 100;
+                    const pullRadius = hole.radius + propR + 150; // Increased range for better "feel"
 
                     if (dist < pullRadius) {
-                        // Pull Force
-                        // Stronger when closer
-                        const force = (hole.radius / (dist + 10)) * 600 * dt;
+                        // Non-Linear Pull Force (The "Black Hole" Effect)
+                        // Force increases exponentially as distance decreases
+                        const distFactor = Math.max(10, dist - hole.radius * 0.2); // Avoid div by zero
+                        const forceMultiplier = 1500; // Stronger base pull
+                        const force = (hole.radius / distFactor) * forceMultiplier * dt;
+
+                        // Tangential Force (Swirl)
+                        const swirlStrength = 500 * dt;
+
                         const nx = dx / dist;
                         const ny = dy / dist;
 
-                        // Stop traffic if caught
+                        // Swirl vector (perpendicular to normal)
+                        const sx = -ny;
+                        const sy = nx;
+
+                        // Stop traffic naturally if caught
                         if (prop.velocity) {
-                            prop.velocity.x *= 0.9;
+                            prop.velocity.x *= 0.9; // Damping
                             prop.velocity.y *= 0.9;
                         }
 
-                        prop.x += nx * force;
+                        // Apply Forces
+                        prop.x += nx * force;     // Pull IN
                         prop.y += ny * force;
 
-                        // Shake
+                        prop.x += sx * swirlStrength; // Spin AROUND
+                        prop.y += sy * swirlStrength;
+
+                        // Juicy Shake (Visual feedback of struggle)
                         if (prop.shake) {
-                            prop.shake.x = (Math.random() - 0.5) * 5;
-                            prop.shake.y = (Math.random() - 0.5) * 5;
+                            const intensity = (1 - (dist / pullRadius)) * 10;
+                            prop.shake.x = (Math.random() - 0.5) * intensity;
+                            prop.shake.y = (Math.random() - 0.5) * intensity;
                         }
 
-                        // Shrink effect
+                        // Shrink & Distort Effect
+                        // Scale down as they get closer to the center
                         if (dist < hole.radius) {
-                             prop.scale = Math.max(0, prop.scale - 3 * dt);
+                             const scaleFactor = dist / hole.radius;
+                             prop.scale = Math.max(0.1, scaleFactor);
+                             // Rotate prop to match swirl
+                             prop.rotation = (prop.rotation || 0) + 10 * dt;
                         }
 
-                        // Eat Logic (Center check)
-                        if (dist < hole.radius * 0.5) {
+                        // Eat Logic (Horizon Event)
+                        // Eat when object center is sufficiently inside
+                        if (dist < hole.radius * 0.4) {
                             prop.markedForDeletion = true;
+
+                            // Haptic Feedback (if enabled)
+                            if (this.settingsManager && this.settingsManager.get('hapticFeedback')) {
+                                if (navigator.vibrate) {
+                                    if (prop.value > 10) navigator.vibrate(50); // Small bump for big items
+                                }
+                            }
 
                             if (prop.propType === 'police') {
                                 hole.shrink(20);
@@ -108,6 +136,9 @@ export default class Physics {
             holes.forEach(otherHole => {
                 if (hole === otherHole) return;
                 if (otherHole.markedForDeletion) return;
+
+                // Invulnerability Check
+                if (otherHole.invulnerable) return;
 
                 const dx = hole.x - otherHole.x;
                 const dy = hole.y - otherHole.y;

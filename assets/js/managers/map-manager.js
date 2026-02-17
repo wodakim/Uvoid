@@ -53,53 +53,77 @@ export default class MapManager {
         // 1. Central Block Content
         const typeRoll = Math.random();
 
-        if (typeRoll < 0.7) {
-            // City Block: Dense Buildings (Solid Blocks)
-            // Create a "City Block" feel by filling the center effectively
-            if (Math.random() < 0.5) {
-                // 1 Massive Building
+        if (typeRoll < 0.5) {
+            // High Density City Block (Buildings)
+            if (Math.random() < 0.4) {
+                // 1 Massive Skyscraper
                 const b = new Prop(centerX, centerY, 'building');
-                b.width = 300;
-                b.length = 300;
-                b.radius = 200;
+                // Customize size for variety
+                b.width = 320;
+                b.length = 320;
+                b.radius = 220; // Hitbox
                 entities.push(b);
             } else {
-                // 4 Quadrant Buildings (More alley-like)
-                const offset = 100;
+                // 4 Smaller Buildings / Apartments
+                const offset = 110;
                 [[-1,-1], [1,-1], [-1,1], [1,1]].forEach(([dx, dy]) => {
-                    const b = new Prop(centerX + dx*offset, centerY + dy*offset, 'building');
-                    b.width = 150;
-                    b.length = 150;
+                    // 20% chance for a Shop instead of a generic building
+                    const type = Math.random() < 0.2 ? 'small_shop' : 'building';
+                    const b = new Prop(centerX + dx*offset, centerY + dy*offset, type);
+                    b.width = 160;
+                    b.length = 160;
                     b.radius = 100;
                     entities.push(b);
                 });
             }
-        } else if (typeRoll < 0.85) {
+        } else if (typeRoll < 0.7) {
             // Plaza / Park (Open space with organized props)
-            // Central Feature
-            const fountain = new Prop(centerX, centerY, 'pole');
-            fountain.scale = 2;
-            entities.push(fountain);
+            // Central Feature: Fountain (Big Pole) or Statue (Kiosk)
+            const featureType = Math.random() < 0.5 ? 'pole' : 'kiosk';
+            const feature = new Prop(centerX, centerY, featureType);
+            if (featureType === 'pole') feature.scale = 3;
+            entities.push(feature);
 
-            // Organized Benches
-            for(let i=0; i<4; i++) {
-                const angle = i * Math.PI/2;
-                const dist = 120;
-                entities.push(new Prop(centerX + Math.cos(angle)*dist, centerY + Math.sin(angle)*dist, 'bench'));
+            // Organized Benches & Trees (Trash Bins disguised as bushes?)
+            for(let i=0; i<8; i++) {
+                const angle = i * (Math.PI/4);
+                const dist = 140;
+                // Alternate Bench and Bin
+                const type = i % 2 === 0 ? 'bench' : 'trash_bin';
+                entities.push(new Prop(centerX + Math.cos(angle)*dist, centerY + Math.sin(angle)*dist, type));
             }
-            // Some pedestrians
-            for(let i=0; i<3; i++) {
-                entities.push(new Human(centerX + (Math.random()-0.5)*200, centerY + (Math.random()-0.5)*200));
+            // Pedestrians strolling
+            for(let i=0; i<5; i++) {
+                entities.push(new Human(centerX + (Math.random()-0.5)*250, centerY + (Math.random()-0.5)*250));
             }
-        } else {
+        } else if (typeRoll < 0.85) {
             // Parking Lot (Cars)
             // Grid of cars
             for(let row=-1; row<=1; row++) {
                 for(let col=-1; col<=1; col++) {
-                    if (row===0 && col===0) continue; // Lane
-                    entities.push(new Prop(centerX + col*100, centerY + row*120, 'car'));
+                    if (row===0 && col===0) continue; // Drive Lane
+                    // Mix of vehicles
+                    const vTypes = ['car', 'car', 'van', 'motorcycle'];
+                    const vType = vTypes[Math.floor(Math.random()*vTypes.length)];
+                    const car = new Prop(centerX + col*120, centerY + row*140, vType);
+                    car.rotation = Math.PI / 2; // Parked straight
+                    entities.push(car);
                 }
             }
+        } else {
+            // Construction Site / Industrial
+            // Fences and heavy machinery (Trucks/Cones)
+            const fenceDist = 200;
+            // Perimeter Fences
+            for(let i=0; i<8; i++) {
+                 const angle = i * (Math.PI/4);
+                 entities.push(new Prop(centerX + Math.cos(angle)*fenceDist, centerY + Math.sin(angle)*fenceDist, 'fence'));
+            }
+            // Inner stuff
+            entities.push(new Prop(centerX - 50, centerY - 50, 'truck'));
+            entities.push(new Prop(centerX + 60, centerY + 40, 'cone'));
+            entities.push(new Prop(centerX + 80, centerY + 40, 'cone'));
+            entities.push(new Prop(centerX + 70, centerY + 60, 'cone'));
         }
 
         // 2. Sidewalk Props (Organized, Less Clutter)

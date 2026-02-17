@@ -161,10 +161,48 @@ export default class Renderer {
 
         this.ctx.fillStyle = depthGrad;
         this.ctx.beginPath();
-        this.ctx.arc(entity.x, entity.y, entity.radius, 0, Math.PI * 2);
+        this.drawShape(entity.x, entity.y, entity.radius, entity.shape);
         this.ctx.fill();
 
-        // 2. Draw Trail
+        // 2. Draw Swirl (Depth Animation)
+        this.ctx.save();
+        this.ctx.translate(entity.x, entity.y);
+
+        // Clip to hole shape
+        this.ctx.beginPath();
+        this.drawShape(0, 0, entity.radius, entity.shape, 0, 0);
+        this.ctx.clip();
+
+        if (entity.type === 'hole') {
+             const swirlCount = 6;
+             const swirlRotation = entity.swirlRotation || 0;
+
+             this.ctx.lineWidth = Math.max(2, entity.radius * 0.05);
+             this.ctx.strokeStyle = entity.color || '#00f3ff';
+             this.ctx.globalAlpha = 0.4;
+             this.ctx.shadowBlur = 10;
+             this.ctx.shadowColor = entity.color;
+
+             for(let i=0; i<swirlCount; i++) {
+                 this.ctx.beginPath();
+                 const angle = (i / swirlCount) * Math.PI * 2 + swirlRotation;
+                 const x = Math.cos(angle) * entity.radius * 0.2;
+                 const y = Math.sin(angle) * entity.radius * 0.2;
+
+                 this.ctx.moveTo(x, y);
+                 // Spiral out
+                 this.ctx.quadraticCurveTo(
+                     Math.cos(angle + 1.5) * entity.radius * 0.7,
+                     Math.sin(angle + 1.5) * entity.radius * 0.7,
+                     Math.cos(angle + 2.5) * entity.radius * 1.2,
+                     Math.sin(angle + 2.5) * entity.radius * 1.2
+                 );
+                 this.ctx.stroke();
+             }
+        }
+        this.ctx.restore();
+
+        // 3. Draw Trail
         if (entity.trail) {
             entity.trail.forEach(t => {
                 this.ctx.globalAlpha = t.a * 0.3;
@@ -176,7 +214,7 @@ export default class Renderer {
             this.ctx.globalAlpha = 1.0;
         }
 
-        // 3. Draw Neon Rings (Animated)
+        // 4. Draw Neon Rings (Animated)
         const time = Date.now() * 0.001;
 
         this.ctx.save();
@@ -188,10 +226,22 @@ export default class Renderer {
         this.drawShape(0, 0, entity.radius, entity.shape, 0, 0); // Local coords 0,0
 
         this.ctx.strokeStyle = entity.color || '#00f3ff';
-        this.ctx.lineWidth = 5;
-        this.ctx.shadowBlur = 20;
+        this.ctx.lineWidth = 6;
+
+        // Intense Neon Glow
+        this.ctx.shadowBlur = 30;
         this.ctx.shadowColor = entity.color || '#00f3ff';
+
         this.ctx.stroke();
+
+        // Second pass for core brightness (Hot white center)
+        this.ctx.shadowBlur = 10;
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+
+        // Restore base color for next operations
+        this.ctx.strokeStyle = entity.color || '#00f3ff';
 
         // Ring 2: Inner Detail (Rotates fast opposite)
         this.ctx.rotate(-time * 2.5);
@@ -204,7 +254,7 @@ export default class Renderer {
 
         this.ctx.restore();
 
-        // 4. Draw Name
+        // 5. Draw Name
         if (entity.name) {
             this.ctx.fillStyle = '#fff';
             this.ctx.font = 'bold 16px Montserrat';
@@ -215,7 +265,7 @@ export default class Renderer {
             this.ctx.shadowBlur = 0;
         }
 
-        // 5. Draw Police Siren
+        // 6. Draw Police Siren
         if (entity.isPolice) {
             this.drawSiren(entity);
         }

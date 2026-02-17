@@ -18,6 +18,13 @@ export default class Hole extends Entity {
 
         // Power-ups
         this.activePowerUps = {};
+
+        // Swirl Animation State
+        this.swirlRotation = 0;
+
+        // Invulnerability
+        this.invulnerable = false;
+        this.invulnerableTimer = 0;
     }
 
     applyPowerUp(type) {
@@ -39,6 +46,25 @@ export default class Hole extends Entity {
         const currentSpeed = this.activePowerUps['speed'] ? (baseSpeed + 200) : Math.max(50, baseSpeed - sizePenalty);
 
         this.currentSpeed = currentSpeed;
+
+        // Update Invulnerability
+        if (this.invulnerable) {
+            this.invulnerableTimer -= dt;
+            if (this.invulnerableTimer <= 0) {
+                this.invulnerable = false;
+                this.color = this.originalColor || this.color;
+            } else {
+                // Blink effect
+                if (Math.floor(this.invulnerableTimer * 10) % 2 === 0) {
+                     this.color = '#ffffff';
+                } else {
+                     this.color = this.originalColor || this.color;
+                }
+            }
+        }
+
+        // Swirl Update
+        this.swirlRotation += dt * 2.0;
 
         // Trail logic
         this.trailTimer += dt;
