@@ -12,131 +12,156 @@ export default class Bot extends Hole {
         this.speed = 150;
 
         // Bot Leveling Logic
-        this.nextThreshold = 300; // Adjusted for Hardcore mode (was 1000)
+        this.nextThreshold = 300;
         this.level = 1;
         this.upgradePool = ['speed', 'size', 'satellite', 'suction', 'digest', 'cooldown'];
+
+        // AI Personality (Randomized)
+        this.aggression = 0.5 + Math.random() * 0.5; // 0.5 to 1.0
+        this.fear = 0.3 + Math.random() * 0.5;
     }
 
     update(dt, entities) {
         super.update(dt);
 
-        // Independent Level Up Check
         if (this.score >= this.nextThreshold) {
             this.levelUp();
         }
 
-        // Virtual Foraging Logic (for off-screen growth)
-        // If no entities are near (which happens if MapManager despawned chunks around us),
-        // we simulate finding food based on current size.
-        // Check if we found ANY props or holes in scan range.
-        const scanRadius = 600;
+        const scanRadius = 700 + (this.radius * 2);
+
+        let bestTarget = null;
+        let bestScore = -Infinity;
+        let biggestThreat = null;
+        let closestThreatDist = Infinity;
+
         let foundSomething = false;
 
-        // AI Logic
-        let closestThreat = null;
-        let closestFood = null;
-        let minThreatDist = Infinity;
-        let minFoodDist = Infinity;
-
-        entities.forEach(entity => {
-            if (entity === this) return;
-            if (entity.markedForDeletion) return;
+        // AI Scan Loop
+        for (const entity of entities) {
+            if (entity === this) continue;
+            if (entity.markedForDeletion) continue;
 
             const dx = entity.x - this.x;
             const dy = entity.y - this.y;
             const distSq = dx*dx + dy*dy;
 
-            if (distSq > scanRadius * scanRadius) return;
+            if (distSq > scanRadius * scanRadius) continue;
 
             const dist = Math.sqrt(distSq);
             foundSomething = true;
 
+            // Threat Detection (Bigger Holes)
             if (entity.type === 'hole') {
-                if (entity.radius > this.radius * 1.1) {
-                    if (dist < minThreatDist) {
-                        minThreatDist = dist;
-                        closestThreat = entity;
-                    }
-                } else if (entity.radius < this.radius * 0.9) {
-                    if (dist < minFoodDist) {
-                        minFoodDist = dist;
-                        closestFood = entity;
-                    }
-                }
-            } else if (entity.type === 'prop') {
-                if (this.radius > entity.radius * 1.1) {
-                     if (dist < minFoodDist) {
-                        minFoodDist = dist;
-                        closestFood = entity;
+                if (entity.radius > this.radius * 1.05) { // 5% margin
+                     if (dist < closestThreatDist) {
+                         closestThreatDist = dist;
+                         biggestThreat = entity;
                      }
+                     continue; // Don't eat threats
                 }
             }
-        });
 
-        // Virtual Foraging: If lonely, grow extremely slowly (Hardcore Pace)
+            // Food Evaluation
+            // We want high value items that are close
+            let value = 0;
+            if (entity.type === 'hole') {
+                value = (entity.score || 10) * 5; // Holes are tasty
+            } else if (entity.type === 'prop') {
+                value = entity.value || 1;
+                // Prefer groups? Hard to detect without complex logic.
+            }
+
+            // Score formula: Value / Distance
+            // Modifiers: Aggression prefers holes.
+            let score = value / (dist + 10);
+
+            if (entity.type === 'hole') {
+                score *= (1 + this.aggression);
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestTarget = entity;
+            }
+        }
+
+        // Virtual Foraging (Hardcore Pace)
         if (!foundSomething) {
-            // Reduced Rate: 1 small prop (value 1) every 2 seconds
             if (Math.random() < dt * 0.5) {
                 this.grow(1);
             }
         }
 
-        // Decision
-        if (closestThreat && minThreatDist < 400) {
+        // State Decision
+        const panicDistance = 300 + this.radius + (biggestThreat ? biggestThreat.radius : 0);
+
+        if (biggestThreat && closestThreatDist < panicDistance) {
             this.state = 'flee';
-            this.target = closestThreat;
-        } else if (closestFood && minFoodDist < 500) {
+            this.target = biggestThreat;
+        } else if (bestTarget) {
             this.state = 'chase';
-            this.target = closestFood;
+            this.target = bestTarget;
         } else {
             this.state = 'wander';
             this.target = null;
         }
 
-        // Action
+        // Action Execution
         let vx = 0, vy = 0;
+        const currentSpeed = this.currentSpeed * (this.state === 'flee' ? 1.2 : 1.0); // Sprint when scared
 
         if (this.state === 'flee') {
             const dx = this.x - this.target.x;
             const dy = this.y - this.target.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
             if (dist > 0) {
-                vx = (dx / dist) * this.currentSpeed;
-                vy = (dy / dist) * this.currentSpeed;
+                // Flee vector
+                vx = (dx / dist) * currentSpeed;
+                vy = (dy / dist) * currentSpeed;
             }
         } else if (this.state === 'chase') {
-            const dx = this.target.x - this.x;
-            const dy = this.target.y - this.y;
+            // Predict target movement?
+            let tx = this.target.x;
+            let ty = this.target.y;
+
+            // Simple prediction if target is moving
+            if (this.target.velocity) {
+                tx += this.target.velocity.x * 0.5; // Look ahead 0.5s
+                ty += this.target.velocity.y * 0.5;
+            }
+
+            const dx = tx - this.x;
+            const dy = ty - this.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
+
             if (dist > 0) {
-                vx = (dx / dist) * this.currentSpeed;
-                vy = (dy / dist) * this.currentSpeed;
+                vx = (dx / dist) * currentSpeed;
+                vy = (dy / dist) * currentSpeed;
             }
         } else {
             // Wander
             this.lastStateChange += dt;
-            if (this.lastStateChange > 1.5 + Math.random()) {
-                this.wanderAngle += (Math.random() - 0.5) * 2;
+            if (this.lastStateChange > 2.0) {
+                // Change direction randomly
+                this.wanderAngle += (Math.random() - 0.5) * 4;
                 this.lastStateChange = 0;
             }
-            vx = Math.cos(this.wanderAngle) * this.currentSpeed * 0.6;
-            vy = Math.sin(this.wanderAngle) * this.currentSpeed * 0.6;
+            vx = Math.cos(this.wanderAngle) * currentSpeed * 0.5;
+            vy = Math.sin(this.wanderAngle) * currentSpeed * 0.5;
         }
 
         this.velocity = { x: vx, y: vy };
     }
 
     levelUp() {
-        // Scaled for Hardcore scoring (approx 1/3 of previous)
         const increment = this.level * 500;
         this.nextThreshold += increment;
         this.level++;
-
         const choice = this.upgradePool[Math.floor(Math.random() * this.upgradePool.length)];
         this.addUpgrade(choice);
     }
 
-    // Bots should have varied appearances
     static getRandomSkin() {
         const skins = [
             { color: '#00f3ff', shape: 'circle' },
