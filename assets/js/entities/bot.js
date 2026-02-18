@@ -112,11 +112,13 @@ export default class Bot extends Hole {
             this.state = 'flee';
             this.target = biggestThreat;
         } else if (bestTarget) {
-            // Priority 2: CHASE
-            this.state = 'chase';
+            // Priority 2: FARM / CHASE (Combine them, chasing food IS farming)
+            // If target is a Prop -> Farm
+            // If target is a Hole -> Chase
+            this.state = 'farm'; // Unified state for seeking food
             this.target = bestTarget;
         } else {
-            // Priority 3: WANDER
+            // Priority 3: WANDER (If absolutely nothing found)
             this.state = 'wander';
             this.target = null;
             // Change wander angle slightly
@@ -139,7 +141,7 @@ export default class Bot extends Hole {
                 vy = (dy / dist);
                 speedMultiplier = 1.3; // Sprint
             }
-        } else if (this.state === 'chase' && this.target) {
+        } else if ((this.state === 'chase' || this.state === 'farm') && this.target) {
             // Run TOWARDS target
             const dx = this.target.x - this.x;
             const dy = this.target.y - this.y;
@@ -149,12 +151,16 @@ export default class Bot extends Hole {
                 vx = (dx / dist);
                 vy = (dy / dist);
                 speedMultiplier = 1.1; // Hunt speed
+            } else {
+                // Reached target?
+                this.target = null;
+                this.state = 'wander';
             }
         } else {
-            // Wander
+            // Wander / Farm Search
             vx = Math.cos(this.wanderAngle);
             vy = Math.sin(this.wanderAngle);
-            speedMultiplier = 0.6; // Cruising
+            speedMultiplier = 0.8; // Active search speed
         }
 
         // Apply Velocity

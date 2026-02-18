@@ -136,6 +136,38 @@ export default class Renderer {
         // Draw UI
         uiElements.forEach(e => e.draw(this.ctx));
 
+        // Police Alert Overlay (Minimap Border or Screen Flash)
+        // Check if player is hunted
+        const player = entities.find(e => e.isPlayer);
+        if (player && player.isHunted) {
+             this.drawPoliceAlert(player);
+        }
+
+        this.ctx.restore();
+    }
+
+    drawPoliceAlert(player) {
+        // Flashing Border on Screen edges
+        const time = Date.now();
+        const flash = (Math.floor(time / 250) % 2 === 0);
+        const color = flash ? 'rgba(255, 0, 0, 0.3)' : 'rgba(0, 0, 255, 0.3)';
+
+        this.ctx.save();
+        this.ctx.fillStyle = color;
+        // Draw 20px border
+        this.ctx.fillRect(0, 0, this.width, 20); // Top
+        this.ctx.fillRect(0, this.height - 20, this.width, 20); // Bottom
+        this.ctx.fillRect(0, 0, 20, this.height); // Left
+        this.ctx.fillRect(this.width - 20, 0, 20, this.height); // Right
+
+        // "WANTED" Text
+        if (flash) {
+            this.ctx.fillStyle = '#ff0000';
+            this.ctx.font = '900 40px Montserrat';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'top';
+            this.ctx.fillText("WANTED", this.width / 2, 80);
+        }
         this.ctx.restore();
     }
 

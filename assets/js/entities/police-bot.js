@@ -17,7 +17,7 @@ export default class PoliceBot extends Bot {
     }
 
     update(dt, entities) {
-        super.update(dt); // Handles movement integration if velocity is set? No, Bot overrides it.
+        super.update(dt, entities); // Fix crash: pass entities to parent
 
         // Siren Logic
         this.sirenTimer += dt;
@@ -48,6 +48,11 @@ export default class PoliceBot extends Bot {
 
         // Find best target
         targets.forEach(t => {
+            // IGNORE SMALL PLAYERS (Optimization)
+            // Police shouldn't chase n00bs. Only threats.
+            // Minimum radius to be wanted = 30 (Start is 15)
+            if (t.radius < 30) return;
+
             // Score = Mass / Distance
             const dist = Math.hypot(t.x - this.x, t.y - this.y);
             let score = t.radius / (dist + 100);
@@ -59,6 +64,16 @@ export default class PoliceBot extends Bot {
             }
         });
 
+        // Reset Hunted Status for Player (Global or per frame?)
+        // Ideally, player.isHunted is transient per frame. We set it true if WE chase them.
+        // We need to clear it somewhere? Or just set it true. Renderer checks it.
+        // If we don't clear it, it stays forever.
+        // Better: Renderer resets it? Or GameManager resets it every frame.
+        // Let's assume GameManager resets or we manage it carefully.
+        // ACTUALLY: Let's set it to false on the player if we abandon chase? No, multiple police.
+        // Let's assume player has a `huntedTimer` instead?
+        // Or simply:
+
         // 2. Check Line of Sight
         if (potentialTarget) {
             if (this.hasLineOfSight(potentialTarget, buildings)) {
@@ -67,6 +82,17 @@ export default class PoliceBot extends Bot {
                 this.target = potentialTarget;
                 this.lastKnownPos = { x: potentialTarget.x, y: potentialTarget.y };
                 this.lostContactTimer = 0;
+
+                if (potentialTarget.isPlayer) {
+                    potentialTarget.isHunted = true;
+                    // Auto-reset handled by frame logic?
+                    // No, let's use a timer on player side if possible, or just set true.
+                    // Renderer draws if true. We need to set false if NOT chasing?
+                    // We can't easily unset it if another police is chasing.
+                    // Hack: Set a timestamp.
+                    potentialTarget.lastHuntedTime = Date.now();
+                    potentialTarget.isHunted = true;
+                }
             } else {
                 // BLOCKED
                 if (this.state === 'chase') {

@@ -208,6 +208,9 @@ export default class GameManager {
                 entity.update(dt, this.entities);
             } else if (entity.isPolice) {
                 entity.update(dt, this.entities);
+            } else if (entity.type === 'bot') {
+                // Should be covered by 'hole', but in case explicit check
+                entity.update(dt, this.entities);
             } else if (entity.propType === 'human') {
                 // Humans need entity list for AI (fleeing)
                 entity.update(dt, this.entities);
