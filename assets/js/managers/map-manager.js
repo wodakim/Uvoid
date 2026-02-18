@@ -83,15 +83,17 @@ export default class MapManager {
     }
 
     generateDowntown(baseX, baseY, entities) {
-        // Downtown: Dense buildings
-        const numBuildings = 2 + Math.floor(Math.random() * 3);
+        // Downtown: Buildings with more spacing
+        const numBuildings = 2 + Math.floor(Math.random() * 2); // Reduced max count slightly
 
         for(let i=0; i<numBuildings; i++) {
-            const x = baseX + 100 + Math.random() * 400;
-            const y = baseY + 100 + Math.random() * 400;
+            // Increased margins to avoid clamping (150-450 instead of 100-500)
+            const x = baseX + 150 + Math.random() * 300;
+            const y = baseY + 150 + Math.random() * 300;
 
-            // Removed 'small_shop' spawning as requested (No Shop Cubes)
+            // Explicit Filter for Shop types, though they shouldn't exist
             const type = 'building';
+            if (type === 'SHOP' || type === 'shop_cube') continue;
 
             entities.push(new Prop(x, y, type));
         }

@@ -273,12 +273,24 @@ export default class Renderer {
     }
 
     drawBuilding3D(entity, camera) {
-        // Fixed Vertical Projection (Top-Down Oblique)
-        // Buildings point UP (Y negative) regardless of camera position.
+        // Central Perspective Projection (Restored)
+        // Buildings extrude away from the camera center
+        const viewCenterX = camera.x;
+        const viewCenterY = camera.y;
 
+        // Vector from Center to Object
+        const dx = entity.x - viewCenterX;
+        const dy = entity.y - viewCenterY;
+
+        // Extrusion Factor (Height Multiplier)
+        // User requested reduction to ~0.15 relative to previous scales.
+        // Previous "High" was 0.0015 * h. Then 0.0008 * h.
+        // Let's go very low to "Low Profile" as requested.
         const h = entity.height || 50;
-        // 1.2 is the extrusion factor as requested
-        const extrusionY = -(h * 1.2);
+        const extrusion = 0.0006 * h;
+
+        const shiftX = dx * extrusion;
+        const shiftY = dy * extrusion;
 
         const w = entity.width || entity.radius * 2;
         const len = entity.length || entity.radius * 2;
@@ -290,12 +302,11 @@ export default class Renderer {
         this.ctx.fillStyle = 'rgba(0,0,0,0.5)';
         this.ctx.fillRect(x - w/2, y - len/2, w, len);
 
-        // Roof Coordinates (Strictly Up)
-        const roofX = x;
-        const roofY = y + extrusionY;
+        // Roof Coordinates
+        const roofX = x + shiftX;
+        const roofY = y + shiftY;
 
         // Draw Sides
-        // We need to connect the 4 corners of Base to 4 corners of Roof
         const corners = [
             { dx: -w/2, dy: -len/2 }, // 0: TL
             { dx: w/2, dy: -len/2 },  // 1: TR
@@ -320,12 +331,11 @@ export default class Renderer {
             this.ctx.stroke();
         };
 
-        // Because projection is strictly UP (Y negative):
-        // Only the BOTTOM Face (BR -> BL) is always visible from "front/top" view if we tilt up.
-        // Wait, "Top-Down Oblique" usually shows the FRONT face (bottom edge of roof to bottom edge of base).
-        // If roof is shifted UP (Y-), the BOTTOM side of the building is exposed.
-
-        drawFace(2, 3); // BR -> BL (Bottom/Front Face)
+        // Determine visible faces based on shift direction (Painter's Algorithm)
+        if (shiftX > 0) drawFace(3, 0); // BL -> TL (Left Face)
+        if (shiftX < 0) drawFace(1, 2); // TR -> BR (Right Face)
+        if (shiftY > 0) drawFace(0, 1); // TL -> TR (Top Face)
+        if (shiftY < 0) drawFace(2, 3); // BR -> BL (Bottom Face)
 
         // Draw Roof
         this.ctx.fillStyle = entity.color;
