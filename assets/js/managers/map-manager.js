@@ -103,11 +103,8 @@ export default class MapManager {
                 if (type === 'SHOP' || type === 'KIOSK' || type === 'small_shop') break;
 
                 // Create temp prop to check dimensions
-                // Prop radius for building is 200 (width 400) which is huge.
-                // Let's assume standard prop creation to get size.
-                // Or estimate: Building radius ~200.
                 const r = 200; // From Prop.TYPES.building
-                const padding = 20;
+                const padding = 50; // Increased Padding "Let the player breathe"
 
                 // Collision Check
                 let collision = false;
@@ -121,6 +118,10 @@ export default class MapManager {
 
                 if (!collision) {
                     const prop = new Prop(x, y, type);
+
+                    // Add Random Rotation to break the grid
+                    prop.rotation = Math.random() * Math.PI / 2;
+
                     entities.push(prop);
                     placedObstacles.push({x, y, r});
                     placed = true;

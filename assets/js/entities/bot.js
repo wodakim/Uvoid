@@ -8,6 +8,7 @@ export default class Bot extends Hole {
         this.state = 'wander';
         this.target = null;
         this.lastStateChange = 0;
+        this.decisionTimer = 0; // Delay for reaction
         this.wanderAngle = Math.random() * Math.PI * 2;
         this.speed = 150;
 
@@ -28,129 +29,137 @@ export default class Bot extends Hole {
             this.levelUp();
         }
 
-        // Reduced Scan Radius for Performance and Focus
-        const scanRadius = 500 + (this.radius * 2);
+        // Bot Brain: Update Decisions every 0.2s to prevent jitter
+        this.decisionTimer -= dt;
+        if (this.decisionTimer <= 0) {
+            this.makeDecision(entities);
+            this.decisionTimer = 0.2 + (Math.random() * 0.1);
+        }
 
+        // Action Execution (Movement)
+        this.executeMovement(dt);
+    }
+
+    makeDecision(entities) {
+        const scanRadius = 600 + (this.radius * 3);
         let bestTarget = null;
         let bestScore = -Infinity;
         let biggestThreat = null;
         let closestThreatDist = Infinity;
 
-        let foundSomething = false;
+        // Filter entities first
+        // We only care about Holes (Threat/Food) and Props (Food)
 
-        // Simplify Loop: Check closest entities
         for (const entity of entities) {
-            if (entity === this) continue;
-            if (entity.markedForDeletion) continue;
+            if (entity === this || entity.markedForDeletion) continue;
 
             const dx = entity.x - this.x;
             const dy = entity.y - this.y;
             const distSq = dx*dx + dy*dy;
 
-            // Collision Avoidance (Solid Props like Buildings)
-            // If very close to a solid building that we can't eat, turn away
-            if (entity.type === 'prop' && entity.isSolid && this.radius < entity.radius) {
-                if (distSq < (this.radius + entity.radius + 50)**2) {
-                     // Force wander away
-                     this.wanderAngle = Math.atan2(this.y - entity.y, this.x - entity.x);
-                     this.state = 'wander';
-                     break;
-                }
-            }
-
+            // Optimization: Quick range check
             if (distSq > scanRadius * scanRadius) continue;
 
             const dist = Math.sqrt(distSq);
-            foundSomething = true;
 
-            // Threat Detection
-            if (entity.type === 'hole') {
-                if (entity.radius > this.radius * 1.05) {
-                     if (dist < closestThreatDist) {
-                         closestThreatDist = dist;
-                         biggestThreat = entity;
-                     }
-                     continue;
+            // 1. Analyze Threats (Bigger Holes)
+            if (entity.type === 'hole' && entity.radius > this.radius * 1.1) {
+                // It's bigger than me
+                if (dist < closestThreatDist) {
+                    closestThreatDist = dist;
+                    biggestThreat = entity;
                 }
+                continue; // Can't eat it, so don't evaluate as food
             }
 
-            // Food Evaluation
+            // 2. Analyze Food (Smaller Holes or Props)
             let value = 0;
+
             if (entity.type === 'hole') {
-                value = (entity.score || 10) * 10; // Prioritize Kills
+                // Smaller hole: High value target
+                // If masses are similar, IGNORE to avoid risk
+                if (this.radius > entity.radius * 1.1) {
+                    value = (entity.score || 10) * 50; // Big priority
+                } else {
+                    // Similar size: Ignore
+                    continue;
+                }
             } else if (entity.type === 'prop') {
-                // If we can eat it
+                // Prop: Must be edible
                 if (this.radius > entity.radius * 1.1) {
                     value = entity.value || 1;
                 } else {
-                    continue; // Ignore things we can't eat
+                    // Avoid stuck logic: If it's a building I can't eat, treat as obstacle?
+                    // For now, just ignore.
+                    continue;
                 }
             }
 
-            let score = value / (dist + 50);
-
-            if (entity.type === 'hole') {
-                score *= (1 + this.aggression);
-            }
-
+            // Scoring: Value / Distance
+            // Add bias for holes
+            let score = value / (dist + 10);
             if (score > bestScore) {
                 bestScore = score;
                 bestTarget = entity;
             }
         }
 
-        // Virtual Foraging if lost
-        if (!foundSomething) {
-            if (Math.random() < dt * 0.5) {
-                this.grow(1);
-            }
-        }
-
-        // State Decision
-        const panicDistance = 250 + this.radius + (biggestThreat ? biggestThreat.radius : 0);
+        // State Machine Logic
+        const panicDistance = 300 + this.radius + (biggestThreat ? biggestThreat.radius : 0);
 
         if (biggestThreat && closestThreatDist < panicDistance) {
+            // Priority 1: FLEE
             this.state = 'flee';
             this.target = biggestThreat;
         } else if (bestTarget) {
+            // Priority 2: CHASE
             this.state = 'chase';
             this.target = bestTarget;
         } else {
-            // Only wander if not already wandering or stuck
-            if (this.state !== 'wander') {
-                this.state = 'wander';
-                this.wanderAngle = Math.random() * Math.PI * 2;
-            }
+            // Priority 3: WANDER
+            this.state = 'wander';
+            this.target = null;
+            // Change wander angle slightly
+            this.wanderAngle += (Math.random() - 0.5) * 1.0;
         }
+    }
 
-        // Action Execution
+    executeMovement(dt) {
         let vx = 0, vy = 0;
-        const currentSpeed = this.currentSpeed * (this.state === 'flee' ? 1.2 : 1.0);
+        let speedMultiplier = 1.0;
 
-        if (this.state === 'flee') {
+        if (this.state === 'flee' && this.target) {
+            // Run AWAY from target
             const dx = this.x - this.target.x;
             const dy = this.y - this.target.y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
+            const dist = Math.hypot(dx, dy);
+
             if (dist > 0) {
-                vx = (dx / dist) * currentSpeed;
-                vy = (dy / dist) * currentSpeed;
+                vx = (dx / dist);
+                vy = (dy / dist);
+                speedMultiplier = 1.3; // Sprint
             }
-        } else if (this.state === 'chase') {
+        } else if (this.state === 'chase' && this.target) {
+            // Run TOWARDS target
             const dx = this.target.x - this.x;
             const dy = this.target.y - this.y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
+            const dist = Math.hypot(dx, dy);
+
             if (dist > 0) {
-                vx = (dx / dist) * currentSpeed;
-                vy = (dy / dist) * currentSpeed;
+                vx = (dx / dist);
+                vy = (dy / dist);
+                speedMultiplier = 1.1; // Hunt speed
             }
         } else {
-            // Wander: Smooth Perlin-like turn
-            this.wanderAngle += (Math.random() - 0.5) * 0.2;
-            vx = Math.cos(this.wanderAngle) * currentSpeed * 0.6;
-            vy = Math.sin(this.wanderAngle) * currentSpeed * 0.6;
+            // Wander
+            vx = Math.cos(this.wanderAngle);
+            vy = Math.sin(this.wanderAngle);
+            speedMultiplier = 0.6; // Cruising
         }
 
-        this.velocity = { x: vx, y: vy };
+        // Apply Velocity
+        const speed = this.currentSpeed * speedMultiplier;
+        this.velocity = { x: vx * speed, y: vy * speed };
     }
 
     levelUp() {
