@@ -90,10 +90,8 @@ export default class MapManager {
             const x = baseX + 100 + Math.random() * 400;
             const y = baseY + 100 + Math.random() * 400;
 
-            const type = Math.random() < 0.3 ? 'small_shop' : 'building';
-
-            // Avoid "SHOP" specific logic if it existed, but here we use generic props
-            // 'small_shop' is a valid prop type for visuals, not the "Debug Shop Cube"
+            // Removed 'small_shop' spawning as requested (No Shop Cubes)
+            const type = 'building';
 
             entities.push(new Prop(x, y, type));
         }

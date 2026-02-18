@@ -316,7 +316,7 @@ button {
 }
 
 .rank-item {
-    font-size: 0.85rem;
+    font-size: 11px;
     color: rgba(255, 255, 255, 0.9);
     margin-bottom: 2px;
     white-space: nowrap;
@@ -405,6 +405,7 @@ button {
     z-index: 6;
     transform: translate(-50%, -50%); /* Center on coords */
     /* Only visible when active via JS */
+    opacity: 0 !important; /* Invisible as requested */
 }
 
 .joystick-knob {
