@@ -114,10 +114,12 @@ export default class Renderer {
         });
 
         // 5. Draw Alive Objects (On top of floor, can cover holes)
-        // Painter's Algorithm based strictly on Bottom Y (y + radius)
+        // Painter's Algorithm based on Bottom Y (y + height/2 or radius)
         aliveProps.sort((a, b) => {
-            const bottomA = a.y + (a.radius || 0);
-            const bottomB = b.y + (b.radius || 0);
+            const ha = a.height || a.radius*2 || 0;
+            const hb = b.height || b.radius*2 || 0;
+            const bottomA = a.y + ha/2;
+            const bottomB = b.y + hb/2;
             return bottomA - bottomB;
         });
 
@@ -273,24 +275,32 @@ export default class Renderer {
     }
 
     drawBuilding3D(entity, camera) {
-        // Central Perspective Projection (Restored)
-        // Buildings extrude away from the camera center
+        // Central Perspective Projection (Fisheye Adjusted)
         const viewCenterX = camera.x;
         const viewCenterY = camera.y;
 
-        // Vector from Center to Object
-        const dx = entity.x - viewCenterX;
-        const dy = entity.y - viewCenterY;
+        const vecX = entity.x - viewCenterX;
+        const vecY = entity.y - viewCenterY;
 
-        // Extrusion Factor (Height Multiplier)
-        // User requested reduction to ~0.15 relative to previous scales.
-        // Previous "High" was 0.0015 * h. Then 0.0008 * h.
-        // Let's go very low to "Low Profile" as requested.
-        const h = entity.height || 50;
-        const extrusion = 0.0006 * h;
+        // Height Clamping (Max visual height 150px) as requested
+        const h = Math.min(entity.height || 50, 150);
 
-        const shiftX = dx * extrusion;
-        const shiftY = dy * extrusion;
+        // Height Factor (0.25 equivalent logic)
+        // If vec is e.g. 100px, and we want a subtle shift.
+        // Using User's "heightFactor = 0.25" concept but applied to height.
+        // Let's assume heightFactor is derived from h.
+        // If h=150, we want a noticeable but not overwhelming shift.
+        // 150 * 0.0025 = 0.375 factor. Shift = vec * 0.375.
+        // If vec=200, shift=75. That's good.
+
+        const extrusionConstant = 0.0025;
+        const heightFactor = h * extrusionConstant;
+
+        const roofX = entity.x + (vecX * heightFactor);
+        const roofY = entity.y + (vecY * heightFactor);
+
+        const shiftX = roofX - entity.x;
+        const shiftY = roofY - entity.y;
 
         const w = entity.width || entity.radius * 2;
         const len = entity.length || entity.radius * 2;
@@ -303,8 +313,7 @@ export default class Renderer {
         this.ctx.fillRect(x - w/2, y - len/2, w, len);
 
         // Roof Coordinates
-        const roofX = x + shiftX;
-        const roofY = y + shiftY;
+        // (Calculated above)
 
         // Draw Sides
         const corners = [

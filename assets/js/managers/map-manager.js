@@ -83,19 +83,49 @@ export default class MapManager {
     }
 
     generateDowntown(baseX, baseY, entities) {
-        // Downtown: Buildings with more spacing
-        const numBuildings = 2 + Math.floor(Math.random() * 2); // Reduced max count slightly
+        // Downtown: Smart Spawn (No overlaps)
+        const numBuildings = 2 + Math.floor(Math.random() * 3);
+        const placedObstacles = [];
 
         for(let i=0; i<numBuildings; i++) {
-            // Increased margins to avoid clamping (150-450 instead of 100-500)
-            const x = baseX + 150 + Math.random() * 300;
-            const y = baseY + 150 + Math.random() * 300;
+            let placed = false;
+            let attempts = 0;
 
-            // Explicit Filter for Shop types, though they shouldn't exist
-            const type = 'building';
-            if (type === 'SHOP' || type === 'shop_cube') continue;
+            while(!placed && attempts < 10) {
+                attempts++;
 
-            entities.push(new Prop(x, y, type));
+                const x = baseX + 100 + Math.random() * 400;
+                const y = baseY + 100 + Math.random() * 400;
+
+                const type = 'building';
+
+                // Absolute Filter (Redundant but safe)
+                if (type === 'SHOP' || type === 'KIOSK' || type === 'small_shop') break;
+
+                // Create temp prop to check dimensions
+                // Prop radius for building is 200 (width 400) which is huge.
+                // Let's assume standard prop creation to get size.
+                // Or estimate: Building radius ~200.
+                const r = 200; // From Prop.TYPES.building
+                const padding = 20;
+
+                // Collision Check
+                let collision = false;
+                for (const obs of placedObstacles) {
+                    const dist = Math.hypot(x - obs.x, y - obs.y);
+                    if (dist < (r + obs.r + padding)) {
+                        collision = true;
+                        break;
+                    }
+                }
+
+                if (!collision) {
+                    const prop = new Prop(x, y, type);
+                    entities.push(prop);
+                    placedObstacles.push({x, y, r});
+                    placed = true;
+                }
+            }
         }
     }
 
