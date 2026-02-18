@@ -10,12 +10,6 @@
     <title>URBAN VOID</title>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="assets/img/icon-192.png">
-
-    <!-- Google Fonts: Orbitron & Rajdhani -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
-
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/warning.css">
     <link rel="stylesheet" href="assets/css/missions.css">
@@ -30,229 +24,173 @@
     <!-- Layer 2: The Game World (The Floor/City Grid) -->
     <canvas id="game-canvas"></canvas>
 
-    <!-- Layer 2.5: Vignette (Cinematic Dark Edges) -->
-    <div id="vignette-layer"></div>
-
     <!-- Layer 3: UI Overlay -->
     <div id="ui-layer">
 
-        <!-- Notification Overlay (Floating Text) -->
-        <div id="notification-overlay" class="hidden"></div>
-
-        <!-- Countdown Overlay -->
-        <div id="countdown-overlay" class="hidden">3</div>
-
-        <!-- WANTED Overlay (Red Pulsing Border) -->
-        <div id="wanted-overlay" class="wanted-overlay hidden">
-            <div class="wanted-text">WANTED</div>
-        </div>
-
         <!-- Main Menu -->
         <div id="screen-main-menu" class="screen active">
-            <!-- Huge Floating Logo -->
-            <div class="menu-header">
-                <h1 class="logo-text glitch" data-text="URBAN VOID">URBAN VOID</h1>
-                <div class="coin-display-menu">
-                    <span class="coin-icon">©</span> <span id="menu-coin-count">0</span>
-                </div>
+            <img src="assets/img/UrbanVoid_LOGO.png" alt="URBAN VOID" class="game-logo">
+            <div class="coin-display">
+                <span class="coin-icon">©</span> <span id="menu-coin-count">0</span>
             </div>
 
-            <div id="mission-board" class="hidden">
-                <ul id="mission-list"></ul>
+            <div id="mission-board">
+                <h3>DAILY MISSIONS</h3>
+                <ul id="mission-list">
+                    <!-- Missions injected by JS -->
+                </ul>
             </div>
 
-            <div class="thumb-zone">
-                <!-- Main Play Button (Pulse) -->
-                <button id="btn-play-menu" class="btn-play-neon">
-                    <span class="play-text">PLAY</span>
-                    <span class="play-sub">RANKED</span>
-                </button>
+            <div class="police-warning">
+                ⚠️ WARNING: POLICE CARS CARRY "VOID CURE". DO NOT EAT! ⚠️
+            </div>
 
-                <div class="menu-actions">
-                    <button id="btn-shop" class="btn-icon-circle" aria-label="Shop">
-                        🛍️
-                        <span id="shop-badge" class="badge hidden">!</span>
-                    </button>
-                    <button id="btn-no-ads" class="btn-icon-circle" aria-label="No Ads">
-                        🚫
-                    </button>
-                    <button id="btn-settings" class="btn-icon-circle" aria-label="Settings">
-                        ⚙️
-                    </button>
-                </div>
+            <div class="top-controls">
+                <button id="btn-settings" class="btn-icon-small">⚙️</button>
+            </div>
+
+            <!-- Main Play Button -->
+            <button id="btn-play-menu" class="btn-primary pulse">PLAY</button>
+
+            <div class="bottom-controls">
+                <button id="btn-no-ads" class="btn-secondary">NO ADS</button>
+                <button id="btn-shop" class="btn-secondary">SKINS / SHOP <span id="shop-badge" class="badge hidden">!</span></button>
             </div>
         </div>
 
         <!-- HUD (In-Game) -->
         <div id="screen-hud" class="screen hidden">
-            <!-- Top Bar: Timer, Level Progress, Pause -->
-            <div class="hud-top-bar">
-                <button id="btn-pause" class="btn-mini-pause">||</button>
+            <button id="btn-pause" class="btn-icon">⏸</button>
 
-                <div class="hud-center-info">
-                    <div id="game-timer" class="orbitron-text">02:00</div>
-                </div>
-
-                <div class="hud-stats">
-                    <div class="score-container">
-                        <span class="score-label">MASS</span>
-                        <span id="hud-score" class="score-value">0</span>
-                    </div>
-                    <!-- Hidden Kills (Required by JS) -->
-                    <div id="hud-kills" class="hidden">0</div>
-
-                    <!-- Visual Level Bar -->
-                    <div class="level-bar-container">
-                        <div id="level-bar-fill" class="level-bar-fill"></div>
-                    </div>
+            <div class="hud-top-left">
+                <!-- Simplified Leaderboard -->
+                <div id="leaderboard" class="leaderboard-compact">
+                    <div class="rank-item" id="player-rank-display">Rank: #1</div>
+                    <div class="rank-item" id="top-player-display">Top 1: VoidKing</div>
                 </div>
             </div>
 
-            <!-- Minimap (Circular) -->
-            <div class="hud-minimap-wrapper">
-                <div id="minimap-container" class="minimap-circle">
+            <!-- Score moved to Top Center (Clean) -->
+            <div class="hud-top-center">
+                 <div id="game-timer">02:00</div>
+                 <div class="score-box-clean">MASS: <span id="hud-score">0</span></div>
+            </div>
+
+            <div class="hud-top-right">
+                <!-- Kills removed or minimized? Keeping Kills for now but styled better in CSS -->
+                <div class="kills-box-clean">💀 <span id="hud-kills">0</span></div>
+                <div id="minimap-container">
                     <canvas id="minimap-canvas" width="100" height="100"></canvas>
                 </div>
             </div>
 
-            <!-- Leaderboard Container (Required by JS) -->
-            <div id="leaderboard" class="hidden"></div>
-
-            <!-- Dynamic Joystick Container (Invisible) -->
+            <!-- Dynamic Joystick Container -->
             <div id="joystick-zone"></div>
-            <!-- Dynamic Joystick Visual (Invisible) -->
+            <!-- Dynamic Joystick Visual -->
             <div id="dynamic-joystick" class="hidden">
                 <div class="joystick-knob"></div>
             </div>
         </div>
 
-        <!-- Pause Screen (Glassmorphism Modal) -->
-        <div id="screen-pause" class="screen hidden backdrop-blur">
-            <div class="modal-centered">
-                <h2 class="orbitron-title">PAUSED</h2>
-                <div class="modal-actions">
-                    <button id="btn-resume" class="btn-primary-neon">RESUME</button>
-                    <button id="btn-quit" class="btn-secondary-neon">QUIT</button>
-                </div>
-            </div>
+        <!-- Pause Screen -->
+        <div id="screen-pause" class="screen hidden" style="background: rgba(0,0,0,0.8); backdrop-filter: blur(5px);">
+            <h1>PAUSED</h1>
+            <button id="btn-resume" class="btn-primary">RESUME</button>
+            <button id="btn-quit" class="btn-secondary">QUIT TO MENU</button>
         </div>
 
-        <!-- Shop Screen (Glassmorphism Modal) -->
-        <div id="screen-shop" class="screen hidden backdrop-blur">
-            <div class="modal-centered modal-large">
-                <h2 class="orbitron-title">CYBER SHOP</h2>
-                <div class="coin-display-shop">
-                    <span class="coin-icon">©</span> <span id="shop-coin-count">0</span>
-                </div>
-                <!-- Grid Layout for Skins -->
-                <div id="skin-grid" class="skin-grid-modern">
-                    <!-- Skins injected by JS -->
-                </div>
-                <button id="btn-back-shop" class="btn-secondary-neon">CLOSE</button>
+        <!-- Shop Screen -->
+        <div id="screen-shop" class="screen hidden">
+            <h2>SHOP</h2>
+            <div class="coin-display-shop">
+                <span class="coin-icon">©</span> <span id="shop-coin-count">0</span>
             </div>
+            <div id="skin-grid" class="skin-grid">
+                <!-- Skins injected by JS -->
+            </div>
+            <button id="btn-back-shop" class="btn-secondary">BACK</button>
         </div>
 
         <!-- Matchmaking Overlay -->
-        <div id="screen-matchmaking" class="screen hidden backdrop-blur">
-            <div class="loader-neon"></div>
-            <h2 class="blink orbitron-text">NETLINKING...</h2>
-            <p class="rajdhani-text">ESTIMATED WAIT: <span id="wait-time">3</span>s</p>
+        <div id="screen-matchmaking" class="screen hidden" style="background: rgba(0,0,0,0.95); z-index: 2000;">
+            <div class="loader"></div>
+            <h2 class="blink">SEARCHING FOR PLAYERS...</h2>
+            <p style="color: #888; margin-top: 10px;">ESTIMATED WAIT: <span id="wait-time" style="color: #fff; font-weight: bold;">3</span>s</p>
         </div>
 
-        <!-- Popup: Settings (Glassmorphism Modal) -->
-        <div id="popup-settings" class="popup hidden backdrop-blur">
-            <div class="modal-centered">
-                <h2 class="orbitron-title">SYSTEM</h2>
-                <div class="settings-grid-modern">
-                    <div class="setting-row">
+        <!-- Popup: Settings -->
+        <div id="popup-settings" class="popup hidden">
+            <div class="popup-content">
+                <h2>SETTINGS</h2>
+                <div class="settings-grid">
+                    <div class="setting-item">
                         <span>SOUND</span>
-                        <button id="btn-toggle-sound" class="btn-toggle-neon">ON</button>
+                        <button id="btn-toggle-sound" class="btn-toggle">ON</button>
                     </div>
-                    <div class="setting-row">
+                    <div class="setting-item">
                         <span>MUSIC</span>
-                        <button id="btn-toggle-music" class="btn-toggle-neon">ON</button>
+                        <button id="btn-toggle-music" class="btn-toggle">ON</button>
                     </div>
-                    <div class="setting-row">
-                        <span>SHAKE</span>
-                        <button id="btn-toggle-shake" class="btn-toggle-neon">OFF</button>
+                    <div class="setting-item">
+                        <span>SCREEN SHAKE</span>
+                        <button id="btn-toggle-shake" class="btn-toggle">OFF</button>
                     </div>
-                    <div class="setting-row">
-                        <span>HAPTIC</span>
-                        <button id="btn-toggle-haptic" class="btn-toggle-neon">OFF</button>
+                    <div class="setting-item">
+                        <span>HAPTIC FEEDBACK</span>
+                        <button id="btn-toggle-haptic" class="btn-toggle">OFF</button>
                     </div>
-                    <div class="setting-row">
-                        <span>VFX</span>
-                        <button id="btn-toggle-vfx" class="btn-toggle-neon">ON</button>
+                    <div class="setting-item">
+                        <span>VISUAL EFFECTS</span>
+                        <button id="btn-toggle-vfx" class="btn-toggle">ON</button>
                     </div>
                 </div>
-                <button id="btn-close-settings" class="btn-secondary-neon">CLOSE</button>
+                <button id="btn-close-settings" class="btn-secondary">CLOSE</button>
             </div>
         </div>
 
-        <!-- Popup: Time Selection (Glassmorphism Modal) -->
-        <div id="popup-time-select" class="popup hidden backdrop-blur">
-            <div class="modal-centered">
-                <h2 class="orbitron-title">DURATION</h2>
-                <div class="time-grid-modern">
-                    <!-- JS selects '.btn-time' -->
-                    <button class="btn-time btn-time-neon" data-time="120">
+        <!-- Popup: Time Selection -->
+        <div id="popup-time-select" class="popup hidden">
+            <div class="popup-content">
+                <h2>SELECT DURATION</h2>
+                <div class="time-grid">
+                    <button class="btn-time" data-time="120">
                         <span class="time-big">2</span> MIN
                     </button>
-                    <button class="btn-time btn-time-neon" data-time="300">
+                    <button class="btn-time" data-time="300">
                         <span class="time-big">5</span> MIN
                     </button>
-                    <button class="btn-time btn-time-neon" data-time="600">
+                    <button class="btn-time" data-time="600">
                         <span class="time-big">10</span> MIN
                     </button>
                 </div>
-                <button id="btn-close-popup" class="btn-secondary-neon">CANCEL</button>
+                <button id="btn-close-popup" class="btn-secondary">CANCEL</button>
             </div>
         </div>
 
         <!-- Level Up Screen -->
-        <div id="screen-levelup" class="screen hidden backdrop-blur" style="z-index: 1500;">
-            <h2 class="levelup-title orbitron-text">SYSTEM UPGRADE</h2>
-            <div id="upgrade-cards-container" class="cards-container-modern">
+        <div id="screen-levelup" class="screen hidden" style="background: rgba(0,0,0,0.9); z-index: 1500;">
+            <h2 class="levelup-title">LEVEL UP!</h2>
+            <div id="upgrade-cards-container" class="cards-container">
                 <!-- Cards Injected via JS -->
             </div>
         </div>
 
         <!-- Game Over Screen -->
-        <div id="screen-game-over" class="screen hidden backdrop-blur">
-            <div class="modal-centered modal-large">
-                <h1 class="orbitron-title">SYNC COMPLETE</h1>
-                <h2 id="final-rank" class="rank-display">RANK #5</h2>
+        <div id="screen-game-over" class="screen hidden">
+            <h1>ROUND OVER</h1>
+            <h2 id="final-rank">RANK #5</h2>
 
-                <div class="progress-container-modern">
-                    <div class="progress-label">LEVEL PROGRESS</div>
-                    <div class="progress-bar-bg">
-                        <div id="progress-bar-fill" class="progress-bar-fill"></div>
-                    </div>
-                    <div class="rewards-text">+<span id="earned-coins">150</span> COINS</div>
+            <div class="progress-container">
+                <div class="progress-label">Level Progress</div>
+                <div class="progress-bar-bg">
+                    <div id="progress-bar-fill" class="progress-bar-fill" style="width: 50%;"></div>
                 </div>
-
-                <div class="gameover-actions">
-                    <button id="btn-revive" class="btn-primary-neon wide">REVIVE (AD)</button>
-                    <div class="row-actions">
-                        <button id="btn-replay" class="btn-secondary-neon">REPLAY</button>
-                        <button id="btn-menu-gameover" class="btn-secondary-neon">MENU</button>
-                    </div>
-                </div>
+                <div class="rewards-text">+<span id="earned-coins">150</span> Coins</div>
             </div>
-        </div>
 
-        <!-- No Ads Modal (New) -->
-        <div id="modal-no-ads" class="popup hidden backdrop-blur">
-            <div class="modal-centered">
-                <h2 class="orbitron-title">REMOVE ADS</h2>
-                <p class="rajdhani-text" style="text-align: center; margin: 20px 0;">
-                    Support development and remove all ads forever for $2.99?
-                </p>
-                <div class="modal-actions">
-                    <button id="btn-confirm-no-ads" class="btn-primary-neon">BUY NOW</button>
-                    <button id="btn-cancel-no-ads" class="btn-secondary-neon">LATER</button>
-                </div>
-            </div>
+            <button id="btn-revive" class="btn-primary">REVIVE (Watch Ad)</button>
+            <button id="btn-replay" class="btn-secondary">REPLAY</button>
+            <button id="btn-menu-gameover" class="btn-secondary">MENU</button>
         </div>
 
     </div>
