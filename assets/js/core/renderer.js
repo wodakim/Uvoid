@@ -114,7 +114,13 @@ export default class Renderer {
         });
 
         // 5. Draw Alive Objects (On top of floor, can cover holes)
-        aliveProps.sort((a, b) => a.y - b.y);
+        // Painter's Algorithm based on Bottom Y (y + radius or height/2)
+        aliveProps.sort((a, b) => {
+            const bottomA = a.y + (a.radius || a.height/2 || 0);
+            const bottomB = b.y + (b.radius || b.height/2 || 0);
+            return bottomA - bottomB;
+        });
+
         aliveProps.forEach(e => {
             if (e.type === 'prop' && (e.propType === 'building' || e.propType === 'shelter' || e.propType === 'kiosk' || e.propType === 'small_shop')) {
                 this.drawBuilding3D(e, camera);
@@ -278,7 +284,7 @@ export default class Renderer {
         // Extrusion Factor (How tall it looks)
         // Further from center -> More shift
         const h = entity.height || 50;
-        const extrusion = 0.0015 * h; // Tunable constant
+        const extrusion = 0.0008 * h; // Tunable constant (Reduced for readability)
 
         const shiftX = dx * extrusion;
         const shiftY = dy * extrusion;
