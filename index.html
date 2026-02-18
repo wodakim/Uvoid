@@ -30,8 +30,17 @@
     <!-- Layer 2: The Game World (The Floor/City Grid) -->
     <canvas id="game-canvas"></canvas>
 
+    <!-- Layer 2.5: Vignette (Cinematic Dark Edges) -->
+    <div id="vignette-layer"></div>
+
     <!-- Layer 3: UI Overlay -->
     <div id="ui-layer">
+
+        <!-- Notification Overlay (Floating Text) -->
+        <div id="notification-overlay" class="hidden"></div>
+
+        <!-- Countdown Overlay -->
+        <div id="countdown-overlay" class="hidden">3</div>
 
         <!-- WANTED Overlay (Red Pulsing Border) -->
         <div id="wanted-overlay" class="wanted-overlay hidden">
@@ -48,8 +57,9 @@
                 </div>
             </div>
 
-            <!-- Warning - Hidden in menu for cleaner look or stylized? -->
-            <!-- Removing warning from main menu to clean it up, maybe move to loading or as a tip -->
+            <div id="mission-board" class="hidden">
+                <ul id="mission-list"></ul>
+            </div>
 
             <div class="thumb-zone">
                 <!-- Main Play Button (Pulse) -->
@@ -88,6 +98,9 @@
                         <span class="score-label">MASS</span>
                         <span id="hud-score" class="score-value">0</span>
                     </div>
+                    <!-- Hidden Kills (Required by JS) -->
+                    <div id="hud-kills" class="hidden">0</div>
+
                     <!-- Visual Level Bar -->
                     <div class="level-bar-container">
                         <div id="level-bar-fill" class="level-bar-fill"></div>
@@ -102,6 +115,9 @@
                 </div>
             </div>
 
+            <!-- Leaderboard Container (Required by JS) -->
+            <div id="leaderboard" class="hidden"></div>
+
             <!-- Dynamic Joystick Container (Invisible) -->
             <div id="joystick-zone"></div>
             <!-- Dynamic Joystick Visual (Invisible) -->
@@ -112,7 +128,7 @@
 
         <!-- Pause Screen (Glassmorphism Modal) -->
         <div id="screen-pause" class="screen hidden backdrop-blur">
-            <div class="modal-glass">
+            <div class="modal-centered">
                 <h2 class="orbitron-title">PAUSED</h2>
                 <div class="modal-actions">
                     <button id="btn-resume" class="btn-primary-neon">RESUME</button>
@@ -123,7 +139,7 @@
 
         <!-- Shop Screen (Glassmorphism Modal) -->
         <div id="screen-shop" class="screen hidden backdrop-blur">
-            <div class="modal-glass modal-large">
+            <div class="modal-centered modal-large">
                 <h2 class="orbitron-title">CYBER SHOP</h2>
                 <div class="coin-display-shop">
                     <span class="coin-icon">©</span> <span id="shop-coin-count">0</span>
@@ -145,7 +161,7 @@
 
         <!-- Popup: Settings (Glassmorphism Modal) -->
         <div id="popup-settings" class="popup hidden backdrop-blur">
-            <div class="modal-glass">
+            <div class="modal-centered">
                 <h2 class="orbitron-title">SYSTEM</h2>
                 <div class="settings-grid-modern">
                     <div class="setting-row">
@@ -175,16 +191,17 @@
 
         <!-- Popup: Time Selection (Glassmorphism Modal) -->
         <div id="popup-time-select" class="popup hidden backdrop-blur">
-            <div class="modal-glass">
+            <div class="modal-centered">
                 <h2 class="orbitron-title">DURATION</h2>
                 <div class="time-grid-modern">
-                    <button class="btn-time-neon" data-time="120">
+                    <!-- JS selects '.btn-time' -->
+                    <button class="btn-time btn-time-neon" data-time="120">
                         <span class="time-big">2</span> MIN
                     </button>
-                    <button class="btn-time-neon" data-time="300">
+                    <button class="btn-time btn-time-neon" data-time="300">
                         <span class="time-big">5</span> MIN
                     </button>
-                    <button class="btn-time-neon" data-time="600">
+                    <button class="btn-time btn-time-neon" data-time="600">
                         <span class="time-big">10</span> MIN
                     </button>
                 </div>
@@ -202,7 +219,7 @@
 
         <!-- Game Over Screen -->
         <div id="screen-game-over" class="screen hidden backdrop-blur">
-            <div class="modal-glass modal-large">
+            <div class="modal-centered modal-large">
                 <h1 class="orbitron-title">SYNC COMPLETE</h1>
                 <h2 id="final-rank" class="rank-display">RANK #5</h2>
 
@@ -214,17 +231,26 @@
                     <div class="rewards-text">+<span id="earned-coins">150</span> COINS</div>
                 </div>
 
-                <!-- Daily Missions (Moved Here) -->
-                <div id="gameover-missions" class="mission-summary">
-                    <!-- Injected via JS if needed or just static reference -->
-                </div>
-
                 <div class="gameover-actions">
                     <button id="btn-revive" class="btn-primary-neon wide">REVIVE (AD)</button>
                     <div class="row-actions">
                         <button id="btn-replay" class="btn-secondary-neon">REPLAY</button>
                         <button id="btn-menu-gameover" class="btn-secondary-neon">MENU</button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- No Ads Modal (New) -->
+        <div id="modal-no-ads" class="popup hidden backdrop-blur">
+            <div class="modal-centered">
+                <h2 class="orbitron-title">REMOVE ADS</h2>
+                <p class="rajdhani-text" style="text-align: center; margin: 20px 0;">
+                    Support development and remove all ads forever for $2.99?
+                </p>
+                <div class="modal-actions">
+                    <button id="btn-confirm-no-ads" class="btn-primary-neon">BUY NOW</button>
+                    <button id="btn-cancel-no-ads" class="btn-secondary-neon">LATER</button>
                 </div>
             </div>
         </div>

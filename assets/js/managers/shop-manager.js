@@ -191,9 +191,30 @@ export default class ShopManager {
     }
 
     buyNoAds() {
-        if (confirm("Remove Ads for $2.99? (Simulated)")) {
+        // Show the new Modal instead of alert
+        const modal = document.getElementById('modal-no-ads');
+        modal.classList.remove('hidden');
+
+        // Bind buttons
+        const confirmBtn = document.getElementById('btn-confirm-no-ads');
+        const cancelBtn = document.getElementById('btn-cancel-no-ads');
+
+        // Remove old listeners to prevent stacking (quick fix)
+        const newConfirm = confirmBtn.cloneNode(true);
+        const newCancel = cancelBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+        cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+
+        newConfirm.addEventListener('click', () => {
             this.saveManager.buyNoAds();
-            alert("Ads Removed!");
-        }
+            modal.classList.add('hidden');
+            // Provide subtle feedback without alert
+            const btn = document.getElementById('btn-no-ads');
+            if(btn) { btn.textContent = 'NO ADS (OWNED)'; btn.disabled = true; }
+        });
+
+        newCancel.addEventListener('click', () => {
+            modal.classList.add('hidden');
+        });
     }
 }
