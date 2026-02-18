@@ -20,8 +20,15 @@ export default class Physics {
 
         // 2. Collision & Interaction
         const holes = entities.filter(e => e.type === 'hole');
-        const props = entities.filter(e => e.type === 'prop' && !e.markedForDeletion);
+        const props = entities.filter(e => e.type === 'prop' && !e.markedForDeletion && !e.isDying);
         const powerups = entities.filter(e => e.type === 'powerup' && !e.markedForDeletion);
+
+        // Check for dying entities to clean up
+        entities.forEach(e => {
+            if (e.isDying && e.dyingProgress >= 1) {
+                e.markedForDeletion = true;
+            }
+        });
 
         // Holes vs PowerUps
         holes.forEach(hole => {
@@ -95,16 +102,20 @@ export default class Physics {
                         // Shrink & Distort Effect
                         // Scale down as they get closer to the center
                         if (dist < hole.radius) {
-                             const scaleFactor = dist / hole.radius;
-                             prop.scale = Math.max(0.1, scaleFactor);
-                             // Rotate prop to match swirl
+                             // This is now handled by Renderer for smooth 60fps,
+                             // but we can keep minimal logic here or just rely on the renderer.
+                             // However, we want to start the dying process properly.
                              prop.rotation = (prop.rotation || 0) + 10 * dt;
                         }
 
                         // Eat Logic (Horizon Event)
                         // Eat when object center is sufficiently inside
                         if (dist < hole.radius * 0.4) {
-                            prop.markedForDeletion = true;
+                            prop.isDying = true;
+                            prop.dyingProgress = 0;
+                            prop.targetHole = hole; // Reference to the hole eating it (for centering)
+                            prop.initialScale = prop.scale || 1;
+                            prop.initialRotation = prop.rotation || 0;
 
                             // Haptic Feedback (if enabled)
                             if (this.settingsManager && this.settingsManager.get('hapticFeedback')) {
