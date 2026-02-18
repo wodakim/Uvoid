@@ -2,66 +2,68 @@ export default class InputHandler {
     constructor(canvas) {
         this.canvas = canvas;
         this.joystickZone = document.getElementById('joystick-zone');
+        this.joystickVisual = document.getElementById('dynamic-joystick');
+        this.joystickKnob = this.joystickVisual ? this.joystickVisual.querySelector('.joystick-knob') : null;
 
         // State
-        this.active = false; // Is input active?
-        this.inputVector = { x: 0, y: 0 };
-        this.pointerPosition = { x: 0, y: 0 };
-        this.origin = { x: 0, y: 0 }; // For virtual joystick
-        this.joystickId = null;
-
-        // Configuration
-        this.maxJoystickRadius = 50; // Max distance for full speed
+        this.active = false;
         this.isTouch = false;
+        this.origin = { x: 0, y: 0 }; // Start of drag
+        this.current = { x: 0, y: 0 }; // Current pointer
+        this.vector = { x: 0, y: 0 }; // Normalized output
+        this.touchId = null;
+
+        // Config
+        this.maxRadius = 50;
 
         this.init();
     }
 
     init() {
         const zone = this.joystickZone;
+        if (!zone) return;
 
-        // Touch Events
-        // Use passive: false to allow preventDefault()
-        // Bind methods to this instance
+        // Touch Events (Dynamic Joystick)
         zone.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
         zone.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
         zone.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
         zone.addEventListener('touchcancel', (e) => this.handleTouchEnd(e), { passive: false });
 
-        // Mouse Events
-        // Global mouse listeners for smoother desktop testing
-        document.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+        // Mouse Events (Fallback/Desktop)
+        zone.addEventListener('mousedown', (e) => this.handleMouseDown(e));
         document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         document.addEventListener('mouseup', (e) => this.handleMouseUp(e));
     }
 
-    // --- Touch Logic (Virtual Joystick) ---
     handleTouchStart(e) {
-        // Prevent scrolling if touching the joystick zone
-        if (e.cancelable) e.preventDefault();
+        if (e.target.closest('button')) return; // Ignore buttons
+        // e.preventDefault(); // Do NOT prevent default here if you want buttons to work, but we check buttons first.
+        // However, if we preventDefault, it stops scrolling.
+        // If we are on the zone (which is full screen but below buttons), we want to prevent scroll.
 
-        if (this.active) return; // Already tracking a touch
+        if (this.active) return;
 
         const touch = e.changedTouches[0];
-        this.joystickId = touch.identifier;
+        this.touchId = touch.identifier;
         this.isTouch = true;
         this.active = true;
 
-        // Set origin to where user touched (Dynamic Joystick)
         this.origin = { x: touch.clientX, y: touch.clientY };
-        this.pointerPosition = { x: touch.clientX, y: touch.clientY };
+        this.current = { x: touch.clientX, y: touch.clientY };
 
+        this.showJoystick(this.origin.x, this.origin.y);
         this.updateVector();
     }
 
     handleTouchMove(e) {
         if (!this.active || !this.isTouch) return;
-        if (e.cancelable) e.preventDefault(); // Always prevent scroll during drag
+        e.preventDefault(); // Stop scroll while dragging
 
         for (let i = 0; i < e.changedTouches.length; i++) {
-            if (e.changedTouches[i].identifier === this.joystickId) {
+            if (e.changedTouches[i].identifier === this.touchId) {
                 const touch = e.changedTouches[i];
-                this.pointerPosition = { x: touch.clientX, y: touch.clientY };
+                this.current = { x: touch.clientX, y: touch.clientY };
+                this.updateJoystickVisual();
                 this.updateVector();
                 break;
             }
@@ -72,65 +74,111 @@ export default class InputHandler {
         if (!this.active || !this.isTouch) return;
 
         for (let i = 0; i < e.changedTouches.length; i++) {
-            if (e.changedTouches[i].identifier === this.joystickId) {
-                if (e.cancelable) e.preventDefault();
-                this.active = false;
-                this.inputVector = { x: 0, y: 0 };
-                this.isTouch = false;
-                this.joystickId = null;
+            if (e.changedTouches[i].identifier === this.touchId) {
+                // e.preventDefault(); // No need to prevent default on end usually
+                this.endInput();
                 break;
             }
         }
     }
 
-    // --- Mouse Logic (Follow Mouse) ---
     handleMouseDown(e) {
-        if (this.isTouch) return; // Ignore mouse if touch is active
-        // Only active if clicking on canvas/zone, but let's allow global for ease
+        if (e.target.closest('button')) return;
         this.active = true;
-        this.pointerPosition = { x: e.clientX, y: e.clientY };
-        this.origin = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+        this.isTouch = false;
+        this.origin = { x: e.clientX, y: e.clientY };
+        this.current = { x: e.clientX, y: e.clientY };
+        this.showJoystick(this.origin.x, this.origin.y);
         this.updateVector();
     }
 
     handleMouseMove(e) {
-        if (this.isTouch) return;
-        this.pointerPosition = { x: e.clientX, y: e.clientY };
-
-        if (this.active) {
-             this.origin = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-             this.updateVector();
-        }
+        if (!this.active || this.isTouch) return;
+        this.current = { x: e.clientX, y: e.clientY };
+        this.updateJoystickVisual();
+        this.updateVector();
     }
 
     handleMouseUp(e) {
         if (this.isTouch) return;
-        this.active = false;
-        this.inputVector = { x: 0, y: 0 };
+        if (this.active) this.endInput();
     }
 
-    // --- Common Logic ---
-    updateVector() {
-        const dx = this.pointerPosition.x - this.origin.x;
-        const dy = this.pointerPosition.y - this.origin.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+    endInput() {
+        this.active = false;
+        this.vector = { x: 0, y: 0 };
+        this.hideJoystick();
+    }
 
-        if (distance === 0) {
-            this.inputVector = { x: 0, y: 0 };
+    updateVector() {
+        const dx = this.current.x - this.origin.x;
+        const dy = this.current.y - this.origin.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+
+        if (dist === 0) {
+            this.vector = { x: 0, y: 0 };
             return;
         }
 
-        // Normalize
-        const nx = dx / distance;
-        const ny = dy / distance;
-
-        let magnitude = distance / this.maxJoystickRadius;
+        // Clamp magnitude for visual
+        let magnitude = dist / this.maxRadius;
         if (magnitude > 1) magnitude = 1;
 
-        this.inputVector = { x: nx * magnitude, y: ny * magnitude };
+        // Vector direction
+        const normalX = dx / dist;
+        const normalY = dy / dist;
+
+        this.vector = {
+            x: normalX * magnitude,
+            y: normalY * magnitude
+        };
+    }
+
+    showJoystick(x, y) {
+        if (this.joystickVisual) {
+            this.joystickVisual.classList.remove('hidden');
+            this.joystickVisual.style.left = `${x}px`;
+            this.joystickVisual.style.top = `${y}px`;
+
+            // Initial knob reset logic handled in updateJoystickVisual mostly, but ensure:
+            if (this.joystickKnob) {
+                this.joystickKnob.style.transform = `translate(-50%, -50%)`;
+            }
+            this.updateJoystickVisual(); // Call immediately to set 0 position correctly
+        }
+    }
+
+    hideJoystick() {
+        if (this.joystickVisual) {
+            this.joystickVisual.classList.add('hidden');
+        }
+    }
+
+    updateJoystickVisual() {
+        if (this.joystickKnob) {
+            // Calculate knob position relative to center
+            const dx = this.current.x - this.origin.x;
+            const dy = this.current.y - this.origin.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+
+            // Clamp visual movement to radius
+            let visualRadius = dist;
+            if (dist > this.maxRadius) visualRadius = this.maxRadius;
+
+            let vx = 0;
+            let vy = 0;
+
+            if (dist > 0) {
+                vx = (dx / dist) * visualRadius;
+                vy = (dy / dist) * visualRadius;
+            }
+
+            // Using transform translate to move from center
+            this.joystickKnob.style.transform = `translate(calc(-50% + ${vx}px), calc(-50% + ${vy}px))`;
+        }
     }
 
     getVector() {
-        return this.inputVector;
+        return this.vector;
     }
 }

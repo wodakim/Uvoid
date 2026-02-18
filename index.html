@@ -63,25 +63,33 @@
             <button id="btn-pause" class="btn-icon">⏸</button>
 
             <div class="hud-top-left">
-                <div id="leaderboard">
-                    <div class="rank-item">1. VoidKing</div>
-                    <div class="rank-item">2. You</div>
-                    <div class="rank-item">3. Eater_X</div>
+                <!-- Simplified Leaderboard -->
+                <div id="leaderboard" class="leaderboard-compact">
+                    <div class="rank-item" id="player-rank-display">Rank: #1</div>
+                    <div class="rank-item" id="top-player-display">Top 1: VoidKing</div>
                 </div>
             </div>
+
+            <!-- Score moved to Top Center (Clean) -->
             <div class="hud-top-center">
-                <div id="game-timer">02:00</div>
+                 <div id="game-timer">02:00</div>
+                 <div class="score-box-clean">MASS: <span id="hud-score">0</span></div>
             </div>
+
             <div class="hud-top-right">
-                <div class="score-box">SCORE: <span id="hud-score">0</span></div>
-                <div class="kills-box">KILLS: <span id="hud-kills">0</span></div>
+                <!-- Kills removed or minimized? Keeping Kills for now but styled better in CSS -->
+                <div class="kills-box-clean">💀 <span id="hud-kills">0</span></div>
                 <div id="minimap-container">
                     <canvas id="minimap-canvas" width="100" height="100"></canvas>
                 </div>
             </div>
 
-            <!-- Virtual Joystick Zone (Invisible but covers area) -->
+            <!-- Dynamic Joystick Container -->
             <div id="joystick-zone"></div>
+            <!-- Dynamic Joystick Visual -->
+            <div id="dynamic-joystick" class="hidden">
+                <div class="joystick-knob"></div>
+            </div>
         </div>
 
         <!-- Pause Screen -->
