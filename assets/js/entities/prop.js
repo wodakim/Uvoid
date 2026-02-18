@@ -31,9 +31,6 @@ export default class Prop extends Entity {
 
         'shelter':{ radius: 80, value: 400, color: '#444444', isSolid: true, height: 50 }, // Buffed
 
-        // Tier 5.5: Medium Structures
-        'small_shop': { radius: 120, value: 800, color: '#00aaaa', isSolid: true, height: 80 }, // Buffed
-
         // Tier 6: Buildings (Eatable by 250+)
         'building': { radius: 200, value: 2500, color: 'random', isSolid: true, height: 300 } // Huge Buff
     };
@@ -70,13 +67,13 @@ export default class Prop extends Entity {
                 this.length = radius * 2;
                 this.width = radius * 0.8;
             }
-        } else if (['building', 'kiosk', 'small_shop'].includes(type)) {
+        } else if (['building', 'kiosk'].includes(type)) {
             this.width = radius * 2;
             this.length = radius * 2;
         }
 
         this.scale = 1;
-        this.rotation = (['building', 'shelter', 'kiosk', 'small_shop'].includes(type)) ? 0 : Math.random() * Math.PI * 2;
+        this.rotation = (['building', 'shelter', 'kiosk'].includes(type)) ? 0 : Math.random() * Math.PI * 2;
 
         this.shake = { x: 0, y: 0 };
     }
@@ -152,7 +149,7 @@ export default class Prop extends Entity {
         else if (['car', 'bus', 'truck', 'police', 'van', 'motorcycle'].includes(this.propType)) {
              this.drawVehicle(ctx);
         }
-        else if (['building', 'kiosk', 'small_shop'].includes(this.propType)) {
+        else if (['building', 'kiosk'].includes(this.propType)) {
              this.drawBuilding(ctx);
         }
         else if (this.propType === 'shelter') {
@@ -248,15 +245,6 @@ export default class Prop extends Entity {
         ctx.fillRect(-w/2 + shiftX + 10, -h/2 + shiftY + 10, w - 20, h - 20);
         ctx.globalAlpha = 1.0;
 
-        // Shop Details?
-        if (this.propType === 'small_shop') {
-            ctx.fillStyle = '#fff';
-            ctx.globalAlpha = 0.8;
-            ctx.font = '20px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('SHOP', shiftX, shiftY + 10);
-            ctx.globalAlpha = 1.0;
-        }
     }
 
     roundRect(ctx, x, y, w, h, r) {

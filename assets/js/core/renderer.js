@@ -114,15 +114,15 @@ export default class Renderer {
         });
 
         // 5. Draw Alive Objects (On top of floor, can cover holes)
-        // Painter's Algorithm based on Bottom Y (y + radius or height/2)
+        // Painter's Algorithm based strictly on Bottom Y (y + radius)
         aliveProps.sort((a, b) => {
-            const bottomA = a.y + (a.radius || a.height/2 || 0);
-            const bottomB = b.y + (b.radius || b.height/2 || 0);
+            const bottomA = a.y + (a.radius || 0);
+            const bottomB = b.y + (b.radius || 0);
             return bottomA - bottomB;
         });
 
         aliveProps.forEach(e => {
-            if (e.type === 'prop' && (e.propType === 'building' || e.propType === 'shelter' || e.propType === 'kiosk' || e.propType === 'small_shop')) {
+            if (e.type === 'prop' && (e.propType === 'building' || e.propType === 'shelter' || e.propType === 'kiosk')) {
                 this.drawBuilding3D(e, camera);
             } else {
                 // Regular draw for cars, humans, etc. (maybe add simple 3D effect later?)
@@ -273,21 +273,12 @@ export default class Renderer {
     }
 
     drawBuilding3D(entity, camera) {
-        // Central Projection
-        const viewCenterX = camera.x;
-        const viewCenterY = camera.y;
+        // Fixed Vertical Projection (Top-Down Oblique)
+        // Buildings point UP (Y negative) regardless of camera position.
 
-        // Vector from Center to Object
-        const dx = entity.x - viewCenterX;
-        const dy = entity.y - viewCenterY;
-
-        // Extrusion Factor (How tall it looks)
-        // Further from center -> More shift
         const h = entity.height || 50;
-        const extrusion = 0.0008 * h; // Tunable constant (Reduced for readability)
-
-        const shiftX = dx * extrusion;
-        const shiftY = dy * extrusion;
+        // 1.2 is the extrusion factor as requested
+        const extrusionY = -(h * 1.2);
 
         const w = entity.width || entity.radius * 2;
         const len = entity.length || entity.radius * 2;
@@ -299,9 +290,9 @@ export default class Renderer {
         this.ctx.fillStyle = 'rgba(0,0,0,0.5)';
         this.ctx.fillRect(x - w/2, y - len/2, w, len);
 
-        // Calculate Roof Coordinates
-        const roofX = x + shiftX;
-        const roofY = y + shiftY;
+        // Roof Coordinates (Strictly Up)
+        const roofX = x;
+        const roofY = y + extrusionY;
 
         // Draw Sides
         // We need to connect the 4 corners of Base to 4 corners of Roof
@@ -316,10 +307,6 @@ export default class Renderer {
         this.ctx.strokeStyle = entity.color;
         this.ctx.lineWidth = 1;
 
-        // Determine visible faces based on shift direction (Painter's Algorithm)
-        // We only draw faces that "face" the camera view.
-        // Or rather, we draw the "exposed" sides caused by the perspective shift.
-
         const drawFace = (idx1, idx2) => {
             const c1 = corners[idx1];
             const c2 = corners[idx2];
@@ -333,22 +320,12 @@ export default class Renderer {
             this.ctx.stroke();
         };
 
-        // Draw "Back" faces first? No, we shouldn't draw hidden faces at all to avoid z-fighting/transparency issues.
-        // But with solid fill, order matters if they overlap.
-        // The "Roof" is drawn last and covers the center.
-        // We only need to draw the sides that stick out.
+        // Because projection is strictly UP (Y negative):
+        // Only the BOTTOM Face (BR -> BL) is always visible from "front/top" view if we tilt up.
+        // Wait, "Top-Down Oblique" usually shows the FRONT face (bottom edge of roof to bottom edge of base).
+        // If roof is shifted UP (Y-), the BOTTOM side of the building is exposed.
 
-        // If shiftX > 0 (Right), Left Face (BL-TL) is visible.
-        if (shiftX > 0) drawFace(3, 0); // BL -> TL (Left Face)
-
-        // If shiftX < 0 (Left), Right Face (TR-BR) is visible.
-        if (shiftX < 0) drawFace(1, 2); // TR -> BR (Right Face)
-
-        // If shiftY > 0 (Down), Top Face (TL-TR) is visible.
-        if (shiftY > 0) drawFace(0, 1); // TL -> TR (Top Face)
-
-        // If shiftY < 0 (Up), Bottom Face (BR-BL) is visible.
-        if (shiftY < 0) drawFace(2, 3); // BR -> BL (Bottom Face)
+        drawFace(2, 3); // BR -> BL (Bottom/Front Face)
 
         // Draw Roof
         this.ctx.fillStyle = entity.color;
@@ -362,11 +339,11 @@ export default class Renderer {
         this.ctx.globalAlpha = 1.0;
 
         // Text/Logo on Roof
-        if (entity.propType === 'small_shop' || entity.propType === 'kiosk') {
+        if (entity.propType === 'kiosk') {
             this.ctx.fillStyle = '#fff';
             this.ctx.font = 'bold 12px sans-serif';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText('SHOP', roofX, roofY + 4);
+            this.ctx.fillText('KIOSK', roofX, roofY + 4);
         }
     }
 
