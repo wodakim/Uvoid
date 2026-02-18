@@ -1,14 +1,19 @@
 export default class Renderer {
     constructor(canvas) {
         this.canvas = canvas;
-        this.ctx = canvas.getContext('2d');
+        this.ctx = canvas.getContext('2d', { alpha: false }); // Optimize for no transparency on canvas itself
         this.width = canvas.width;
         this.height = canvas.height;
+
+        // Configuration
         this.gridSize = 100;
-        this.gridColor = '#333';
-        this.floorColor = '#111';
-        this.visualEffects = true; // Cached setting
+        this.floorColor = '#0a0a10'; // Dark Void Floor
+        this.gridColor = 'rgba(0, 255, 255, 0.05)'; // Subtle Cyan Lines
+        this.visualEffects = true;
         this.lastTime = performance.now();
+
+        // Cache for 2.5D Projection
+        this.projectionFactor = 0.4; // How "tall" buildings look (Extrusion strength)
     }
 
     resize(width, height) {
@@ -19,48 +24,48 @@ export default class Renderer {
     }
 
     clear() {
-        this.ctx.clearRect(0, 0, this.width, this.height);
+        this.ctx.fillStyle = this.floorColor;
+        this.ctx.fillRect(0, 0, this.width, this.height);
     }
 
     render(entities, camera) {
-        // Time Calculation for smooth animation
         const now = performance.now();
-        const dt = (now - this.lastTime) / 1000;
+        const dt = Math.min((now - this.lastTime) / 1000, 0.1); // Cap dt
         this.lastTime = now;
 
-        // Cache setting once per frame
+        // Settings check
         this.visualEffects = (window.app && window.app.settingsManager) ? window.app.settingsManager.get('visualEffects') : true;
 
         this.clear();
         this.ctx.save();
-        this.updateParallax(camera);
 
-        // Camera Transform
+        // 1. Camera Transform
+        // Center the camera
         this.ctx.translate(this.width / 2, this.height / 2);
         this.ctx.scale(camera.zoom, camera.zoom);
         this.ctx.translate(-camera.x, -camera.y);
 
-        // Culling bounds
+        // Viewport Culling Calculation
         const vpW = this.width / camera.zoom;
         const vpH = this.height / camera.zoom;
-        const viewLeft = camera.x - vpW / 2 - 250; // Extra buffer for 3D extrusion
-        const viewRight = camera.x + vpW / 2 + 250;
-        const viewTop = camera.y - vpH / 2 - 250;
-        const viewBottom = camera.y + vpH / 2 + 250;
+        const viewLeft = camera.x - vpW / 2 - 300; // Extra buffer for tall buildings
+        const viewRight = camera.x + vpW / 2 + 300;
+        const viewTop = camera.y - vpH / 2 - 300;
+        const viewBottom = camera.y + vpH / 2 + 300;
 
         const isVisible = (e) => {
-            // Check if entity or its shadow/extrusion is visible
-            const r = e.radius || Math.max(e.width || 0, e.height || 0) || 50;
-            // Add margin for 3D height
-            const margin = e.height3d ? e.height3d * 1.5 : 0;
-            return (e.x + r + margin > viewLeft && e.x - r - margin < viewRight &&
-                    e.y + r + margin > viewTop && e.y - r - margin < viewBottom);
+            const size = e.radius || Math.max(e.width || 0, e.height || 0) || 50;
+            const margin = (e.height3d || 0) * 1.5; // Account for 3D extrusion
+            return (e.x + size + margin > viewLeft &&
+                    e.x - size - margin < viewRight &&
+                    e.y + size + margin > viewTop &&
+                    e.y - size - margin < viewBottom);
         };
 
         // Categorize Entities
         const holes = [];
         const dyingProps = [];
-        const aliveProps = [];
+        const aliveProps = []; // Includes buildings, cars, humans
         const uiElements = [];
 
         entities.forEach(e => {
@@ -69,7 +74,6 @@ export default class Renderer {
             } else if (e.type === 'floating_text') {
                 uiElements.push(e);
             } else if (e.isDying) {
-                // Update dying animation state here
                 this.updateDyingEntity(e, dt);
                 dyingProps.push(e);
             } else if (e.type === 'prop' || e.type === 'powerup' || e.type === 'particle') {
@@ -77,67 +81,61 @@ export default class Renderer {
             }
         });
 
-        // 1. Draw Floor (Dark Grid)
+        // --- RENDER PASSES ---
+
+        // Pass 0: Floor & Grid
         this.drawFloor(camera);
 
-        // 2. Draw Holes (The Pit) - Background of the hole
+        // Pass 1: Holes (The Void) - Background
         holes.forEach(hole => {
             if (isVisible(hole)) this.drawHole(hole);
         });
 
-        // 3. The Masking Trick (Clipping)
-        // We want dying objects to look like they are falling INTO the holes.
-        // We clip the drawing area to the holes' shapes.
+        // Pass 2: Dying Objects (Clipped inside holes)
         if (dyingProps.length > 0) {
             this.ctx.save();
             this.ctx.beginPath();
+            // Create a mask from all holes
             holes.forEach(hole => {
-                 this.drawShapePath(hole.x, hole.y, hole.radius, hole.shape);
+                // Standard circle clip for now (simplest for performance)
+                this.ctx.moveTo(hole.x + hole.radius, hole.y);
+                this.ctx.arc(hole.x, hole.y, hole.radius, 0, Math.PI * 2);
             });
             this.ctx.clip();
 
-            // Draw falling objects inside the clip
+            // Draw falling objects
             dyingProps.forEach(e => {
-                 // No shadow for falling objects usually, or shadow on the "void" wall?
-                 // Just draw them.
-                 e.draw(this.ctx);
+                this.drawEntitySimple(e); // Simple draw without heavy effects
             });
-
             this.ctx.restore();
         }
 
-        // 4. Draw Hole Rims (Neon Overlay)
-        // Drawn BEFORE Alive Objects so buildings cover the rim if they overlap.
-        // This ensures the "3D Depth" illusion is maintained.
+        // Pass 3: Hole Rims (Neon Overlay)
+        // Drawn after dying objects but before alive objects (so buildings can cover the rim)
         holes.forEach(h => {
-             if (isVisible(h)) this.drawHoleRim(h);
+            if (isVisible(h)) this.drawHoleRim(h);
         });
 
-        // 5. Draw Alive Objects (On top of floor, can cover holes)
-        // Painter's Algorithm based on Bottom Y (y + height/2 or radius)
+        // Pass 4: Alive Props (Sorted by Y for correct overlap)
+        // Sort by 'base Y' (bottom of the object)
         aliveProps.sort((a, b) => {
-            const ha = a.height || a.radius*2 || 0;
-            const hb = b.height || b.radius*2 || 0;
-            const bottomA = a.y + ha/2;
-            const bottomB = b.y + hb/2;
+            const bottomA = a.y + (a.length ? a.length/2 : (a.radius || 0));
+            const bottomB = b.y + (b.length ? b.length/2 : (b.radius || 0));
             return bottomA - bottomB;
         });
 
         aliveProps.forEach(e => {
-            if (e.type === 'prop' && (e.propType === 'building' || e.propType === 'shelter' || e.propType === 'kiosk')) {
+            if (e.type === 'prop' && (e.propType === 'building' || e.propType === 'kiosk' || e.propType === 'shelter')) {
                 this.drawBuilding3D(e, camera);
             } else {
-                // Regular draw for cars, humans, etc. (maybe add simple 3D effect later?)
-                // For now, use their 2D draw but maybe add shadow
                 this.drawEntityWithShadow(e);
             }
         });
 
-        // Draw UI
+        // Pass 5: UI Elements (Floating Text)
         uiElements.forEach(e => e.draw(this.ctx));
 
-        // Police Alert Overlay (Minimap Border or Screen Flash)
-        // Check if player is hunted
+        // Pass 6: Police/Wanted Overlay
         const player = entities.find(e => e.isPlayer);
         if (player && player.isHunted) {
              this.drawPoliceAlert(player);
@@ -146,50 +144,35 @@ export default class Renderer {
         this.ctx.restore();
     }
 
-    drawPoliceAlert(player) {
-        // Flashing Border on Screen edges
-        const time = Date.now();
-        const flash = (Math.floor(time / 250) % 2 === 0);
-        const color = flash ? 'rgba(255, 0, 0, 0.3)' : 'rgba(0, 0, 255, 0.3)';
-
-        this.ctx.save();
-        this.ctx.fillStyle = color;
-        // Draw 20px border
-        this.ctx.fillRect(0, 0, this.width, 20); // Top
-        this.ctx.fillRect(0, this.height - 20, this.width, 20); // Bottom
-        this.ctx.fillRect(0, 0, 20, this.height); // Left
-        this.ctx.fillRect(this.width - 20, 0, 20, this.height); // Right
-
-        // "WANTED" Text
-        if (flash) {
-            this.ctx.fillStyle = '#ff0000';
-            this.ctx.font = '900 40px Montserrat';
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'top';
-            this.ctx.fillText("WANTED", this.width / 2, 80);
-        }
-        this.ctx.restore();
-    }
-
+    /**
+     * Logic: Scale down, Rotate, Move to Center
+     */
     updateDyingEntity(e, dt) {
-        e.dyingProgress = (e.dyingProgress || 0) + dt * 1.5; // Animation speed
-
-        if (e.dyingProgress > 1) e.dyingProgress = 1;
-
-        const t = e.dyingProgress;
-
-        // Lerp Position towards Hole Center
-        if (e.targetHole) {
-            e.x = e.x + (e.targetHole.x - e.x) * dt * 3;
-            e.y = e.y + (e.targetHole.y - e.y) * dt * 3;
+        // Initialize death state if needed
+        if (typeof e.deathTimer === 'undefined') {
+            e.deathTimer = 0;
+            e.initialScale = e.scale || 1;
+            e.initialX = e.x;
+            e.initialY = e.y;
+            e.deathDuration = 0.5; // Seconds to disappear
         }
 
-        // Scale Down
-        const startScale = e.initialScale || 1; // Assuming 1 if not set
-        e.scale = startScale * (1 - t);
+        e.deathTimer += dt;
+        const t = Math.min(e.deathTimer / e.deathDuration, 1);
 
-        // Rotate
-        e.rotation = (e.rotation || 0) + dt * 10;
+        // 1. Scale: 1.0 -> 0.0
+        e.scale = e.initialScale * (1 - t);
+
+        // 2. Position: Lerp towards hole center
+        if (e.targetHole) {
+            // Non-linear pull (easier at end)
+            const pullFactor = t * t;
+            e.x = e.initialX + (e.targetHole.x - e.initialX) * pullFactor;
+            e.y = e.initialY + (e.targetHole.y - e.initialY) * pullFactor;
+        }
+
+        // 3. Rotation: Spin faster as it shrinks
+        e.rotation = (e.rotation || 0) + (10 + t * 20) * dt;
     }
 
     drawFloor(camera) {
@@ -200,82 +183,79 @@ export default class Renderer {
         const endX = startX + viewportWidth;
         const endY = startY + viewportHeight;
 
-        // Draw Dark Floor
-        this.ctx.fillStyle = '#0a0a10'; // Darker "Void-like" floor
-        this.ctx.fillRect(startX - 100, startY - 100, viewportWidth + 200, viewportHeight + 200);
+        // Base already cleared with dark color in clear()
 
         if (this.visualEffects) {
-            // Draw Grid
             this.ctx.beginPath();
-            this.ctx.strokeStyle = 'rgba(0, 255, 255, 0.05)'; // Very subtle cyan
+            this.ctx.strokeStyle = this.gridColor;
             this.ctx.lineWidth = 1;
             const gs = this.gridSize;
 
+            // Snap to grid
             const gridStartX = Math.floor(startX / gs) * gs;
             const gridStartY = Math.floor(startY / gs) * gs;
 
+            // Vertical Lines
             for (let x = gridStartX; x <= endX; x += gs) {
-                this.ctx.moveTo(x, startY - 100);
-                this.ctx.lineTo(x, endY + 100);
+                this.ctx.moveTo(x, startY);
+                this.ctx.lineTo(x, endY);
             }
+            // Horizontal Lines
             for (let y = gridStartY; y <= endY; y += gs) {
-                this.ctx.moveTo(startX - 100, y);
-                this.ctx.lineTo(endX + 100, y);
+                this.ctx.moveTo(startX, y);
+                this.ctx.lineTo(endX, y);
             }
             this.ctx.stroke();
         }
     }
 
-    updateParallax(camera) {
-        const bg = document.getElementById('abyss-background');
-        if (bg) {
-            const offsetX = -camera.x * 0.05;
-            const offsetY = -camera.y * 0.05;
-            bg.style.backgroundPosition = `${offsetX}px ${offsetY}px`;
-        }
-    }
-
-    drawHole(entity) {
-        const r = entity.radius;
-        // Cyberpunk Hole: Radial Gradient
-        const grad = this.ctx.createRadialGradient(entity.x, entity.y, 0, entity.x, entity.y, r);
-        grad.addColorStop(0, '#000000'); // Deep Black Center
-        grad.addColorStop(0.8, '#0a0a0a'); // Dark Grey
-        grad.addColorStop(1, '#111111'); // Edge
+    drawHole(hole) {
+        const r = hole.radius;
+        // 1. Gradient (Deep Space / Cyberpunk)
+        // Center: Black, Edge: Dark Grey/Purple tint?
+        const grad = this.ctx.createRadialGradient(hole.x, hole.y, 0, hole.x, hole.y, r);
+        grad.addColorStop(0, '#000000'); // Singularity
+        grad.addColorStop(0.7, '#050505');
+        grad.addColorStop(1, '#111111'); // Rim edge
 
         this.ctx.fillStyle = grad;
         this.ctx.beginPath();
-        this.drawShapePath(entity.x, entity.y, r, entity.shape);
+        this.ctx.arc(hole.x, hole.y, r, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // Internal Rotation Effect (Singularity)
+        // 2. Internal Rotation (Singularity Effect)
         if (this.visualEffects) {
             this.ctx.save();
-            this.ctx.translate(entity.x, entity.y);
-            this.ctx.rotate(Date.now() * 0.0005);
+            this.ctx.translate(hole.x, hole.y);
+            // Rotate based on time
+            const rotation = Date.now() * 0.001;
+            this.ctx.rotate(rotation);
 
-            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            // Draw faint swirl lines
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
             this.ctx.lineWidth = 2;
             this.ctx.beginPath();
-            // Draw a spiral or concentric circles
-            for(let i=1; i<4; i++) {
-                this.ctx.beginPath();
-                this.ctx.arc(0, 0, r * (i/4), 0, Math.PI * 2);
-                this.ctx.stroke();
+            // Draw a spiral-like shape
+            for (let i = 0; i < 3; i++) {
+                this.ctx.rotate(Math.PI * 2 / 3);
+                this.ctx.moveTo(10, 0);
+                this.ctx.quadraticCurveTo(r/2, r/2, r - 5, 0);
             }
-
+            this.ctx.stroke();
             this.ctx.restore();
         }
     }
 
-    drawHoleRim(entity) {
-        const r = entity.radius;
-        const color = entity.color || '#00f3ff';
+    drawHoleRim(hole) {
+        const r = hole.radius;
+        const color = hole.color || '#00f3ff'; // Default Cyan
+
+        // Pulse Effect
         const time = Date.now();
-        const pulse = Math.sin(time * 0.005) * 5 + 15; // 10 to 20
+        const pulse = Math.sin(time * 0.005) * 5 + 15; // Oscillate between 10 and 20
 
         this.ctx.save();
-        this.ctx.translate(entity.x, entity.y);
+        this.ctx.translate(hole.x, hole.y);
 
         // Neon Glow
         if (this.visualEffects) {
@@ -284,178 +264,192 @@ export default class Renderer {
         }
 
         this.ctx.strokeStyle = color;
-        this.ctx.lineWidth = 4;
+        this.ctx.lineWidth = 3;
         this.ctx.beginPath();
-        this.drawShapePath(0, 0, r, entity.shape); // Local coords 0,0
+        this.ctx.arc(0, 0, r, 0, Math.PI * 2);
         this.ctx.stroke();
 
         this.ctx.restore();
     }
 
-    drawEntityWithShadow(entity) {
-        // Simple shadow
+    drawEntitySimple(entity) {
         this.ctx.save();
-        this.ctx.translate(entity.x + 5, entity.y + 5);
+        this.ctx.translate(entity.x, entity.y);
+        this.ctx.rotate(entity.rotation || 0);
         this.ctx.scale(entity.scale || 1, entity.scale || 1);
+
+        // Simple fallback draw if entity.draw is too complex or we just want shape
+        if (entity.draw) {
+            // Trick: We need to draw it at (0,0) because we already translated
+            // But entity.draw might expect absolute coordinates or handle translation itself.
+            // Let's check Prop.js: it does `ctx.translate(this.x...)`.
+            // So we need to revert our translation OR assume entity.draw handles it.
+            // Actually, existing `Prop.draw` handles translation.
+            // So we should NOT translate here if we call `entity.draw`.
+            // BUT `updateDyingEntity` changes `entity.x/y`.
+            // So `entity.draw` will use the updated x/y.
+
+            this.ctx.restore(); // Undo our local transform
+            entity.draw(this.ctx); // Let entity draw itself
+            return;
+        }
+
+        // Fallback shape
+        this.ctx.fillStyle = entity.color || '#fff';
+        this.ctx.beginPath();
+        this.ctx.arc(0, 0, entity.radius || 10, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.restore();
+    }
+
+    drawEntityWithShadow(entity) {
+        // Shadow
+        this.ctx.save();
+        const shadowOffset = 5 * (entity.scale || 1);
+        this.ctx.translate(entity.x + shadowOffset, entity.y + shadowOffset);
+        this.ctx.scale(entity.scale || 1, entity.scale || 1);
+
         this.ctx.fillStyle = 'rgba(0,0,0,0.3)';
         this.ctx.beginPath();
+        // Assuming circle for generic shadow
         this.ctx.arc(0, 0, entity.radius, 0, Math.PI*2);
         this.ctx.fill();
         this.ctx.restore();
 
+        // Entity
         entity.draw(this.ctx);
     }
 
     drawBuilding3D(entity, camera) {
-        // Central Perspective Projection (Fisheye Adjusted)
-        const viewCenterX = camera.x;
-        const viewCenterY = camera.y;
-
-        const vecX = entity.x - viewCenterX;
-        const vecY = entity.y - viewCenterY;
-
-        // Height Clamping (Max visual height 150px) as requested
-        const h = Math.min(entity.height || 50, 150);
-
-        // Height Factor (0.25 equivalent logic)
-        // If vec is e.g. 100px, and we want a subtle shift.
-        // Using User's "heightFactor = 0.25" concept but applied to height.
-        // Let's assume heightFactor is derived from h.
-        // If h=150, we want a noticeable but not overwhelming shift.
-        // 150 * 0.0025 = 0.375 factor. Shift = vec * 0.375.
-        // If vec=200, shift=75. That's good.
-
-        const extrusionConstant = 0.0025;
-        const heightFactor = h * extrusionConstant;
-
-        const roofX = entity.x + (vecX * heightFactor);
-        const roofY = entity.y + (vecY * heightFactor);
-
-        const shiftX = roofX - entity.x;
-        const shiftY = roofY - entity.y;
-
-        const w = entity.width || entity.radius * 2;
-        const len = entity.length || entity.radius * 2;
-
         const x = entity.x;
         const y = entity.y;
+        const w = entity.width || entity.radius * 2;
+        const h = entity.length || entity.radius * 2;
+        const height3d = entity.height || 50; // Use entity.height property as 3D height
+        const color = entity.color;
 
-        // Draw Base (Shadow/Ground)
-        this.ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        this.ctx.fillRect(x - w/2, y - len/2, w, len);
+        // 1. Calculate Extrusion Vector (Parallax)
+        // Vector from Camera Center to Object Center
+        const dx = x - camera.x;
+        const dy = y - camera.y;
 
-        // Roof Coordinates
-        // (Calculated above)
+        // Scale vector by projection factor to get Roof Offset
+        const roofOffsetX = dx * (this.projectionFactor * (height3d / 300)); // Taller buildings lean more? Or constant?
+        // Let's use a constant factor scaled by height slightly
+        const factor = 0.2; // 0.2 means roof moves 20% of distance from center
+        // But let's clamp it to avoid extreme distortion at edges
 
-        // Draw Sides
+        const roofX = x + dx * factor * (height3d / 100);
+        const roofY = y + dy * factor * (height3d / 100);
+
+        // 2. Draw Base (Shadow/Ground Anchor)
+        this.ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        this.ctx.fillRect(x - w/2, y - h/2, w, h);
+
+        // 3. Draw Sides (Connecting Base to Roof)
+        // We only draw the sides that are visible.
+        // If roof is to the right (dx > 0), we see the LEFT side (connecting left-base to left-roof).
+        // Wait. If object is to the Right of camera, we see its Left side. Correct.
+
         const corners = [
-            { dx: -w/2, dy: -len/2 }, // 0: TL
-            { dx: w/2, dy: -len/2 },  // 1: TR
-            { dx: w/2, dy: len/2 },   // 2: BR
-            { dx: -w/2, dy: len/2 }   // 3: BL
+            { x: -w/2, y: -h/2 }, // TL
+            { x: w/2, y: -h/2 },  // TR
+            { x: w/2, y: h/2 },   // BR
+            { x: -w/2, y: h/2 }   // BL
         ];
 
-        this.ctx.fillStyle = this.darkenColor(entity.color, -40); // Darker sides
-        this.ctx.strokeStyle = entity.color;
+        // Darken color for sides
+        this.ctx.fillStyle = this.adjustColor(color, -40);
+        this.ctx.strokeStyle = this.adjustColor(color, -20);
         this.ctx.lineWidth = 1;
 
-        const drawFace = (idx1, idx2) => {
-            const c1 = corners[idx1];
-            const c2 = corners[idx2];
+        // Helper to draw a quad
+        const drawQuad = (c1, c2) => {
             this.ctx.beginPath();
-            this.ctx.moveTo(x + c1.dx, y + c1.dy); // Base 1
-            this.ctx.lineTo(roofX + c1.dx, roofY + c1.dy); // Roof 1
-            this.ctx.lineTo(roofX + c2.dx, roofY + c2.dy); // Roof 2
-            this.ctx.lineTo(x + c2.dx, y + c2.dy); // Base 2
+            this.ctx.moveTo(x + c1.x, y + c1.y);         // Base 1
+            this.ctx.lineTo(roofX + c1.x, roofY + c1.y); // Roof 1
+            this.ctx.lineTo(roofX + c2.x, roofY + c2.y); // Roof 2
+            this.ctx.lineTo(x + c2.x, y + c2.y);         // Base 2
             this.ctx.closePath();
             this.ctx.fill();
             this.ctx.stroke();
         };
 
-        // Determine visible faces based on shift direction (Painter's Algorithm)
-        if (shiftX > 0) drawFace(3, 0); // BL -> TL (Left Face)
-        if (shiftX < 0) drawFace(1, 2); // TR -> BR (Right Face)
-        if (shiftY > 0) drawFace(0, 1); // TL -> TR (Top Face)
-        if (shiftY < 0) drawFace(2, 3); // BR -> BL (Bottom Face)
+        // Determine visible faces based on shift
+        const shiftX = roofX - x;
+        const shiftY = roofY - y;
 
-        // Draw Roof
-        this.ctx.fillStyle = entity.color;
-        this.ctx.fillRect(roofX - w/2, roofY - len/2, w, len);
+        // Painter's Algorithm for sides:
+        // If shiftX > 0 (Roof moved Right), we see Left Face (BL -> TL)
+        // If shiftX < 0 (Roof moved Left), we see Right Face (TR -> BR)
+        // If shiftY > 0 (Roof moved Down), we see Top Face (TL -> TR)
+        // If shiftY < 0 (Roof moved Up), we see Bottom Face (BR -> BL)
 
-        // Roof Border/Detail
-        this.ctx.strokeStyle = '#ffffff';
-        this.ctx.lineWidth = 2;
-        this.ctx.globalAlpha = 0.3;
-        this.ctx.strokeRect(roofX - w/2, roofY - len/2, w, len);
-        this.ctx.globalAlpha = 1.0;
+        // Note: Order matters? Yes, draw 'back' faces first if we were inside?
+        // But here we just draw visible ones. They usually don't overlap much unless extreme.
 
-        // Text/Logo on Roof
-        if (entity.propType === 'kiosk') {
-            this.ctx.fillStyle = '#fff';
-            this.ctx.font = 'bold 12px sans-serif';
-            this.ctx.textAlign = 'center';
-            this.ctx.fillText('KIOSK', roofX, roofY + 4);
+        if (shiftX > 0) drawQuad(corners[3], corners[0]); // Left
+        else if (shiftX < 0) drawQuad(corners[1], corners[2]); // Right
+
+        if (shiftY > 0) drawQuad(corners[0], corners[1]); // Top
+        else if (shiftY < 0) drawQuad(corners[2], corners[3]); // Bottom
+
+        // 4. Draw Roof
+        this.ctx.fillStyle = color;
+        this.ctx.fillRect(roofX - w/2, roofY - h/2, w, h);
+
+        // Roof Border (Highlight)
+        this.ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        this.ctx.strokeRect(roofX - w/2, roofY - h/2, w, h);
+
+        // Optional: Roof Detail (e.g. Helipad H or AC units)
+        if (height3d > 100) {
+            this.ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            this.ctx.fillRect(roofX - w/4, roofY - h/4, w/2, h/2);
         }
     }
 
-    drawShapePath(x, y, r, type) {
-        if (type === 'square') {
-            const side = r * Math.sqrt(2);
-            this.ctx.rect(x - side/2, y - side/2, side, side);
-        } else if (type === 'star') {
-            this.drawStarPath(x, y, 5, r, r/2);
-        } else if (type === 'gear') {
-             this.drawGearPath(x, y, 8, r, r * 0.8);
-        } else {
-            this.ctx.arc(x, y, r, 0, Math.PI * 2);
+    drawPoliceAlert(player) {
+        const time = Date.now();
+        if (Math.floor(time / 250) % 2 === 0) {
+             // Red Border
+             this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+             this.ctx.lineWidth = 20;
+             this.ctx.strokeRect(0, 0, this.width, this.height);
+
+             // Text
+             this.ctx.save();
+             this.ctx.fillStyle = '#ff0000';
+             this.ctx.font = '900 40px sans-serif'; // Simple font for safety
+             this.ctx.textAlign = 'center';
+             this.ctx.textBaseline = 'top';
+             this.ctx.fillText("WANTED", this.width / 2, 50);
+             this.ctx.restore();
         }
     }
 
-    drawStarPath(cx, cy, spikes, outerRadius, innerRadius) {
-        let rot = Math.PI / 2 * 3;
-        let x = cx;
-        let y = cy;
-        const step = Math.PI / spikes;
-
-        this.ctx.moveTo(cx, cy - outerRadius);
-        for (let i = 0; i < spikes; i++) {
-            x = cx + Math.cos(rot) * outerRadius;
-            y = cy + Math.sin(rot) * outerRadius;
-            this.ctx.lineTo(x, y);
-            rot += step;
-
-            x = cx + Math.cos(rot) * innerRadius;
-            y = cy + Math.sin(rot) * innerRadius;
-            this.ctx.lineTo(x, y);
-            rot += step;
+    adjustColor(color, amount) {
+        let usePound = false;
+        if (color[0] === "#") {
+            color = color.slice(1);
+            usePound = true;
         }
-        this.ctx.lineTo(cx, cy - outerRadius);
-        this.ctx.closePath();
-    }
 
-    drawGearPath(cx, cy, teeth, outerRadius, innerRadius) {
-        const step = (Math.PI * 2) / (teeth * 2);
-
-        for (let i = 0; i < teeth * 2; i++) {
-            const r = (i % 2 === 0) ? outerRadius : innerRadius;
-            const angle = i * step - Math.PI / 2;
-            if (i===0) this.ctx.moveTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
-            else this.ctx.lineTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+        // Handle short hex (e.g., "333" -> "333333")
+        if (color.length === 3) {
+            color = color[0] + color[0] + color[1] + color[1] + color[2] + color[2];
         }
-        this.ctx.closePath();
-    }
 
-    darkenColor(color, percent) {
-        // Helper to darken hex color
-        // Assuming hex input
-        if (color[0] === '#') {
-             let num = parseInt(color.slice(1), 16);
-             let amt = Math.round(2.55 * percent);
-             let R = (num >> 16) + amt;
-             let G = (num >> 8 & 0x00FF) + amt;
-             let B = (num & 0x0000FF) + amt;
-             return '#' + (0x1000000 + (R<255?R<1?0:R:255)*0x10000 + (G<255?G<1?0:G:255)*0x100 + (B<255?B<1?0:B:255)).toString(16).slice(1);
-        }
-        return color; // Fallback
+        let num = parseInt(color, 16);
+        let r = (num >> 16) + amount;
+        if (r > 255) r = 255; else if (r < 0) r = 0;
+
+        let b = ((num >> 8) & 0x00FF) + amount;
+        if (b > 255) b = 255; else if (b < 0) b = 0;
+
+        let g = (num & 0x0000FF) + amount;
+        if (g > 255) g = 255; else if (g < 0) g = 0;
+
+        return (usePound ? "#" : "") + (g | (b << 8) | (r << 16)).toString(16).padStart(6, '0');
     }
 }

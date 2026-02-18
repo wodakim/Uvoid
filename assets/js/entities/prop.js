@@ -70,6 +70,13 @@ export default class Prop extends Entity {
         } else if (['building', 'kiosk'].includes(type)) {
             this.width = radius * 2;
             this.length = radius * 2;
+        } else if (type === 'shelter') {
+            // Shelter visual size correction (was hardcoded small in draw)
+            this.width = 60;
+            this.length = 40;
+            // Note: Radius 80 is kept for collision/area, but visual is smaller?
+            // Or maybe we should adjust radius?
+            // Keeping radius for game balance, visual size for rendering.
         }
 
         this.scale = 1;

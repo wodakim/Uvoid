@@ -50,7 +50,7 @@ export default class GameLoop {
         // alpha = this.accumulator / this.timeStep
         // For now, simple render
         // Pass entities and camera from GameManager
-        if (this.gameManager.state === 'PLAYING') {
+        if (this.gameManager.state === 'PLAYING' || this.gameManager.state === 'COUNTDOWN') {
              this.renderer.render(this.gameManager.entities, this.gameManager.camera);
         } else {
             // Render menu background or something?
