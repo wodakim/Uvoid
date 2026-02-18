@@ -60,57 +60,53 @@ export default class Physics {
                 if (hole.radius > propR * 1.1) {
 
                     // Suction Range
-                    const pullRadius = hole.radius + propR + 150; // Increased range for better "feel"
+                    const pullRadius = hole.radius + 150;
 
                     if (dist < pullRadius) {
-                        // Non-Linear Pull Force (The "Black Hole" Effect)
-                        // Force increases exponentially as distance decreases
-                        const distFactor = Math.max(10, dist - hole.radius * 0.2); // Avoid div by zero
-                        const forceMultiplier = 1500; // Stronger base pull
-                        const force = (hole.radius / distFactor) * forceMultiplier * dt;
+                        // SUCTION PHYSICS UPGRADE
+                        // Normalize distance (0 = center, 1 = edge of pull)
+                        const t = 1 - (dist / pullRadius);
 
-                        // Tangential Force (Swirl)
-                        const swirlStrength = 500 * dt;
+                        // Pull Force: Increases drastically as it gets closer
+                        // Base force + Exponential ramp
+                        const pullForce = 500 + (3000 * (t * t));
 
                         const nx = dx / dist;
                         const ny = dy / dist;
 
-                        // Swirl vector (perpendicular to normal)
-                        const sx = -ny;
-                        const sy = nx;
+                        // Apply Pull
+                        prop.x += nx * pullForce * dt;
+                        prop.y += ny * pullForce * dt;
 
-                        // Stop traffic naturally if caught
+                        // ATMOSPHERIC DRAG (Friction)
+                        // Objects caught in suction should lose their own momentum rapidly
+                        // This prevents them from orbiting forever
                         if (prop.velocity) {
-                            prop.velocity.x *= 0.9; // Damping
-                            prop.velocity.y *= 0.9;
+                            prop.velocity.x *= 0.90; // Heavy drag
+                            prop.velocity.y *= 0.90;
                         }
 
-                        // Apply Forces
-                        prop.x += nx * force;     // Pull IN
-                        prop.y += ny * force;
+                        // Tangential "Swirl" (Optional visual flair, reduced to prevent orbit)
+                        // We want them to fall IN, not orbit.
+                        const swirlForce = 100 * t; // Weak swirl
+                        const sx = -ny;
+                        const sy = nx;
+                        prop.x += sx * swirlForce * dt;
+                        prop.y += sy * swirlForce * dt;
 
-                        prop.x += sx * swirlStrength; // Spin AROUND
-                        prop.y += sy * swirlStrength;
+                        // Rotation Spin (Visual)
+                        prop.rotation = (prop.rotation || 0) + (10 * t * dt);
 
-                        // Juicy Shake (Visual feedback of struggle)
+                        // Juicy Shake
                         if (prop.shake) {
-                            const intensity = (1 - (dist / pullRadius)) * 10;
+                            const intensity = t * 5;
                             prop.shake.x = (Math.random() - 0.5) * intensity;
                             prop.shake.y = (Math.random() - 0.5) * intensity;
                         }
 
-                        // Shrink & Distort Effect
-                        // Scale down as they get closer to the center
-                        if (dist < hole.radius) {
-                             // This is now handled by Renderer for smooth 60fps,
-                             // but we can keep minimal logic here or just rely on the renderer.
-                             // However, we want to start the dying process properly.
-                             prop.rotation = (prop.rotation || 0) + 10 * dt;
-                        }
-
                         // Eat Logic (Horizon Event)
                         // Eat when object center is sufficiently inside
-                        if (dist < hole.radius * 0.4) {
+                        if (dist < hole.radius * 0.5) {
                             prop.isDying = true;
                             prop.dyingProgress = 0;
                             prop.targetHole = hole; // Reference to the hole eating it (for centering)
@@ -135,11 +131,20 @@ export default class Physics {
                     }
 
                 } else {
-                    // 2. Too big to eat. Collision?
+                    // 2. Too big to eat? SOLID COLLISION.
+                    // If player is smaller than object, and object is 'isSolid' (Building/Obstacle),
+                    // treat it as a wall.
+
                     if (prop.isSolid) {
-                        this.resolveSolidCollision(hole, prop);
+                        // Rectangular Collision for Buildings/Shelters
+                        if (prop.propType === 'building' || prop.propType === 'shelter' || prop.propType === 'kiosk') {
+                            this.resolveRectCollision(hole, prop);
+                        } else {
+                            // Circular Collision for Poles, Trees, Hydrants
+                            this.resolveCircleCollision(hole, prop);
+                        }
                     }
-                    // If not solid (Cars, Humans), do nothing. Pass under.
+                    // If not solid (Cars, Humans), do nothing. Pass under (or push slightly?).
                 }
             });
 
@@ -190,69 +195,66 @@ export default class Physics {
         });
     }
 
-    resolveSolidCollision(hole, prop) {
-        // Prop is solid (Building, Pole).
-        // Treat as Rectangle or Circle?
-        // Buildings are usually Rects. Poles are Circles.
-
-        // Simplification: Treat Buildings as Rects, everything else as Circles.
-        if (prop.propType === 'building' || prop.propType === 'shelter') {
-             this.resolveRectCollision(hole, prop);
-        } else {
-             this.resolveCircleCollision(hole, prop);
-        }
-    }
-
     resolveCircleCollision(hole, prop) {
         const dx = hole.x - prop.x;
         const dy = hole.y - prop.y;
         const dist = Math.sqrt(dx*dx + dy*dy);
-        const minDist = hole.radius + prop.radius; // Approximate physical radius
+        const minDist = hole.radius + (prop.radius * 0.8); // Slightly forgiving
 
         if (dist < minDist) {
             const overlap = minDist - dist;
+            // Prevent division by zero
+            if (dist === 0) { hole.x += overlap; return; }
+
             const nx = dx / dist;
             const ny = dy / dist;
 
-            // Move hole out
+            // Move hole out (Bounce/Slide)
             hole.x += nx * overlap;
             hole.y += ny * overlap;
         }
     }
 
     resolveRectCollision(hole, prop) {
-        // Rect dimensions - Tightened for better feel (ignore shadows/edges)
-        // Adjust collision box to be slightly smaller than visual to allow "sliding"
-        // Also ensure shadows (which are part of visuals usually) don't block.
-        // Assuming prop.width/length are the PHYSICAL bounds.
+        // Strict Rectangle Collision for Buildings
+        // Visual width/length might include shadows, so reduce slightly for physics
+        // prop.width is full width. hw is half-width.
 
-        const hw = (prop.width / 2) * 0.8;
-        const hh = (prop.length / 2) * 0.8;
+        // Use 90% of visual size for collision box to prevent "snagging" on corners
+        const hw = (prop.width / 2) * 0.9;
+        const hl = (prop.length / 2) * 0.9;
 
-        // Clamp point (hole center) to rect
+        // Find closest point on rect to circle center
         const closestX = Math.max(prop.x - hw, Math.min(hole.x, prop.x + hw));
-        const closestY = Math.max(prop.y - hh, Math.min(hole.y, prop.y + hh));
+        const closestY = Math.max(prop.y - hl, Math.min(hole.y, prop.y + hl));
 
         const dx = hole.x - closestX;
         const dy = hole.y - closestY;
         const distSq = dx*dx + dy*dy;
 
-        // If distance from closest point is less than radius, we are colliding
-        if (distSq < hole.radius * hole.radius) {
+        // Collision if distance to closest point < radius
+        // Use a "Hard" radius for the hole (visual radius)
+        const radius = hole.radius;
+
+        if (distSq < radius * radius) {
             const dist = Math.sqrt(distSq);
 
-            // Prevent division by zero
+            // If center is inside, push out
             if (dist === 0) {
-                // Center is exactly inside, push out arbitrarily
-                hole.x += hole.radius;
+                // Fallback push
+                if (Math.abs(hole.x - prop.x) > Math.abs(hole.y - prop.y)) {
+                    hole.x = (hole.x > prop.x) ? prop.x + hw + radius : prop.x - hw - radius;
+                } else {
+                    hole.y = (hole.y > prop.y) ? prop.y + hl + radius : prop.y - hl - radius;
+                }
                 return;
             }
 
-            const overlap = hole.radius - dist;
+            const overlap = radius - dist;
             const nx = dx / dist;
             const ny = dy / dist;
 
-            // Move hole out
+            // Slide Logic: Push hole away along normal
             hole.x += nx * overlap;
             hole.y += ny * overlap;
         }
