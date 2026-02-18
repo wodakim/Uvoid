@@ -14,6 +14,7 @@ export default class Camera {
     follow(target, dt) {
         // Smoother Lerp (Damping)
         // Lerp factor 0.1 is smoother than typical 0.2-0.5
+        // User requested exactly 0.1 for organic feel
         const lerpFactor = 0.1;
 
         this.x += (target.x - this.x) * lerpFactor;

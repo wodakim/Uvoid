@@ -1,3 +1,5 @@
+/* Cleaned Up CSS for Modern HUD */
+/* Keep existing font-face and global resets */
 @font-face {
   font-family: 'Montserrat';
   font-style: normal;
@@ -64,7 +66,6 @@ body {
     overflow: hidden;
 }
 
-/* Add some stars/particles to abyss via CSS if possible, or just a simple gradient for now */
 #abyss-background::after {
     content: '';
     position: absolute;
@@ -271,7 +272,7 @@ button {
     right: -5px;
 }
 
-/* HUD Specifics */
+/* HUD Specifics - REFACTORED */
 #screen-hud {
     justify-content: flex-start;
     align-items: stretch;
@@ -298,78 +299,124 @@ button {
     backdrop-filter: blur(4px);
 }
 
-.hud-top-left, .hud-top-center, .hud-top-right {
-    position: absolute;
-    top: 15px;
-    padding: 8px 12px;
-    background: rgba(0, 0, 0, 0.4); /* Glassmorphism */
-    backdrop-filter: blur(8px);
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    pointer-events: auto; /* Buttons inside HUD clickable */
-}
-
+/* Simplified Leaderboard */
 .hud-top-left {
+    position: absolute;
     left: 15px;
     top: 70px; /* Below pause button */
-    max-width: 150px;
+    pointer-events: auto;
 }
 
-.hud-top-center {
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 5px 20px;
-    border-radius: 30px; /* Pill shape */
-    background: rgba(0, 0, 0, 0.6);
-}
-
-.hud-top-right {
-    right: 15px;
-    text-align: right;
-    min-width: 100px;
-}
-
-#game-timer {
-    font-size: 1.8rem;
-    font-weight: 900;
-    color: #fff;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 2px;
-}
-
-.score-box {
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: var(--color-tertiary);
-    text-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
-}
-
-.kills-box {
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--color-accent);
+.leaderboard-compact {
+    background: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
+    padding: 8px 12px;
+    border-radius: 8px;
+    backdrop-filter: blur(2px);
+    border-left: 2px solid var(--color-secondary);
 }
 
 .rank-item {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: rgba(255, 255, 255, 0.9);
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-weight: 600;
 }
 
-/* Joystick Zone */
+/* Clean Top Center HUD (Timer + Score) */
+.hud-top-center {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: auto;
+}
+
+#game-timer {
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    margin-bottom: 4px;
+}
+
+.score-box-clean {
+    font-size: 1.0rem;
+    font-weight: 800;
+    color: var(--color-tertiary);
+    text-shadow: 0 0 5px rgba(57, 255, 20, 0.8);
+    background: rgba(0,0,0,0.6);
+    padding: 2px 10px;
+    border-radius: 10px;
+}
+
+/* Top Right (Minimap + Kills) */
+.hud-top-right {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    pointer-events: auto;
+}
+
+.kills-box-clean {
+    font-size: 0.9rem;
+    color: #fff;
+    font-weight: 700;
+    margin-bottom: 5px;
+    background: rgba(255, 0, 0, 0.2);
+    padding: 2px 8px;
+    border-radius: 5px;
+}
+
+#minimap-container {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    overflow: hidden;
+    width: 80px;
+    height: 80px;
+    background: rgba(0,0,0,0.5);
+}
+
+/* Dynamic Joystick */
 #joystick-zone {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 5; /* Above canvas, below buttons if any */
-    /* Ensure it doesn't block top UI */
-    pointer-events: auto;
+    z-index: 5;
+    pointer-events: auto; /* Catch touches */
+    background: transparent; /* Totally invisible */
+}
+
+#dynamic-joystick {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    pointer-events: none; /* Visual only */
+    z-index: 6;
+    transform: translate(-50%, -50%); /* Center on coords */
+    /* Only visible when active via JS */
+}
+
+.joystick-knob {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 10px rgba(255,255,255,0.5);
 }
 
 /* Shop Grid */
@@ -703,11 +750,11 @@ button {
 
     /* HUD Optimization */
     .hud-top-center {
-        top: 60px; /* Move timer below pause button/notch area if needed, or keep top */
-        padding: 4px 15px;
+        /* Keep it roughly centered but responsive */
+        padding: 2px 10px;
     }
 
     #game-timer {
-        font-size: 1.4rem;
+        font-size: 1.2rem;
     }
 }
